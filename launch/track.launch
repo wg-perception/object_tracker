@@ -1,0 +1,7 @@
+<launch>
+    <node pkg="object_tracker" name="$(anon object_tracker)" type="object_tracker_node">
+      <remap from="recognized_object_array" to="/recognized_object_array" />
+      <remap from="cloud_in" to="/camera/depth_registered/points" />
+      <param name="frame_id" type="string" value="/camera_rgb_optical_frame" />
+    </node>
+</launch>

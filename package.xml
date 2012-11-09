@@ -1,0 +1,42 @@
+<package>
+  <name>object_tracker</name>
+  <version>0.0.1</version>
+  <description>An object tracking package</description>
+  <author email="hbristow@willowgarage.com">Hilton Bristow</author>
+  <maintainer email="hbristow@willowgarage.com">Hilton Bristow</maintainer>
+  <license>BSD</license>
+  <url>http://ecto.willowgarage.com</url>
+
+  <build_depend>catkin</build_depend>
+  <build_depend>object_recognition_core</build_depend>
+  <build_depend>object_recognition_msgs</build_depend>
+  <build_depend>roscpp</build_depend>
+  <build_depend>cv_bridge</build_depend>
+  <build_depend>ecto</build_depend>
+  <build_depend>image_geometry</build_depend>
+  <build_depend>image_transport</build_depend>
+  <build_depend>message_filters</build_depend>
+  <build_depend>object_recognition_core</build_depend>
+  <build_depend>object_recognition_tabletop</build_depend>
+  <build_depend>openni-dev</build_depend>
+  <build_depend>opencv2</build_depend>
+  <build_depend>roscpp</build_depend>
+  <build_depend>vision_opencv</build_depend>
+  <build_depend>pcl</build_depend>
+  <build_depend>pcl_ros</build_depend>  
+
+  <run_depend>cvmatio</run_depend>
+  <run_depend>cv_bridge</run_depend>
+  <run_depend>roscpp</run_depend>
+  <run_depend>ecto</run_depend>
+  <run_depend>image_geometry</run_depend>
+  <run_depend>image_transport</run_depend>
+  <run_depend>message_filters</run_depend>
+  <run_depend>opencv2</run_depend>
+  <run_depend>object_recognition_core</run_depend>
+  <run_depend>object_recognition_msgs</run_depend>
+  <run_depend>object_recognition_tabletop</run_depend>
+  <run_depend>openni-dev</run_depend>
+  <run_depend>pcl</run_depend>
+  <run_depend>pcl_ros</run_depend>  
+</package>
