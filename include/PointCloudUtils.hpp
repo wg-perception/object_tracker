@@ -64,7 +64,7 @@ public:
 	}
 
 	static void gridSample(const PointCloudConstPtr& cloud, PointCloud& result,
-			double leaf_size = 0.005)
+			double leaf_size = 0.015)
 	{
 		pcl::VoxelGrid<PointType> grid;
 		grid.setLeafSize(float(leaf_size), float(leaf_size), float(leaf_size));
@@ -73,7 +73,7 @@ public:
 	}
 
 	static void gridSampleApprox(const PointCloudConstPtr& cloud,
-			PointCloud& result, double leaf_size = 0.005)
+			PointCloud& result, double leaf_size = 0.015)
 	{
 		pcl::ApproximateVoxelGrid<PointType> grid;
 		grid.setLeafSize(static_cast<float>(leaf_size),
@@ -139,7 +139,7 @@ public:
 	{
 		pcl::EuclideanClusterExtraction<PointType> ec;
 		ec.setClusterTolerance(0.03); // 2cm
-		ec.setMinClusterSize(50);
+		ec.setMinClusterSize(250);
 		ec.setMaxClusterSize(25000);
 		//ec.setMaxClusterSize (400);
 		ec.setInputCloud(cloud);

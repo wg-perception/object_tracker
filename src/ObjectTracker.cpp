@@ -49,12 +49,13 @@ bool ObjectTrackerNode::init(
 //	object_recognition_subscriber_ = nh_object_recognition_.subscribe<
 //			object_recognition_msgs::RecognizedObjectArrayConstPtr>(
 //			"recognized_object_array", 1, recognition_callback);
+
 	synchronizer_.registerCallback(&ObjectTrackerNode::recognizedObjectCallback, this);
 //	synchronizer_.registerCallback(boost::bind(&ObjectTrackerNode::recognizedObjectCallback, this, _1, _2));
 
 	boost::function<void(PointCloud::ConstPtr)> cloud_callback(
 			boost::bind(&ObjectTrackerNode::cloudCallback, this, _1));
-	cloud_subscriber_ = nh_.subscribe<PointCloud::ConstPtr>("cloud_in", 1,
+	cloud_subscriber_ = nh_.subscribe<PointCloud::ConstPtr>("cloud_in", 2,
 			cloud_callback);
 
 	object_pose_publisher_ = nh_.advertise<geometry_msgs::PoseArray>(
@@ -77,6 +78,7 @@ void ObjectTrackerNode::recognizedObjectCallback(
 
 	ROS_INFO(
 			"Received a callback with %zu recognitions.", msg_recognition->objects.size());
+
 //	{
 //		boost::mutex::scoped_lock prev_cloud_lock(previous_cloud_mutex_);
 //		cloud = previous_cloud_;
@@ -98,8 +100,6 @@ void ObjectTrackerNode::recognizedObjectCallback(
 		regular_objects_list_copy = regular_objects_list_;
 		stale_objects_list_copy = stale_objects_list_;
 	}
-
-	Utils::gridSampleApprox(cloud, *downsampled_cloud);
 
 	// If there aare no recognitions...
 	if (msg_recognition->objects.size() == 0)
@@ -158,7 +158,7 @@ void ObjectTrackerNode::recognizedObjectCallback(
 		//
 		// Publish poses (if needed)
 		//
-		publishPoses(new_objects_list_copy, regular_objects_list_copy,
+		publishPoses(cloud->header.frame_id, cloud->header.stamp, new_objects_list_copy, regular_objects_list_copy,
 				stale_objects_list_copy);
 
 		{
@@ -172,6 +172,7 @@ void ObjectTrackerNode::recognizedObjectCallback(
 	}
 
 	ROS_INFO("The cloud frame id is %s, the recognition frame_id is %s. The cloud is organized: %s.", cloud->header.frame_id.c_str(), msg_recognition->objects[0].header.frame_id.c_str(), cloud->isOrganized() ? "true" : "false");
+	Utils::gridSampleApprox(cloud, *downsampled_cloud);
 
 	//
 	// First thing, check into the current tracking sets
@@ -263,12 +264,14 @@ void ObjectTrackerNode::recognizedObjectCallback(
 			// might have found something or not, need to check
 			if (!min_regular_ptr)
 			{
+				ROS_INFO("Object %zu not found in the current lists.", rec_idx);
 				continue;
 			}
 
 			recognition_solved[rec_idx] = true;
 			object_for_recognition[rec_idx] = min_regular_ptr;
 			regular_objects_list_copy.remove(min_regular_ptr);
+			ROS_INFO("Object %zu found in the regular list.", rec_idx);
 		}
 		else if (min_new_distance < min_regular_distance
 				&& min_new_distance < min_stale_distance)
@@ -276,6 +279,7 @@ void ObjectTrackerNode::recognizedObjectCallback(
 			recognition_solved[rec_idx] = true;
 			object_for_recognition[rec_idx] = min_new_ptr;
 			new_objects_list_copy.remove(min_new_ptr);
+			ROS_INFO("Object %zu found in the new list. Promoting it.", rec_idx);
 		}
 		else if (min_stale_distance < min_new_distance
 				&& min_stale_distance < min_regular_distance)
@@ -283,12 +287,17 @@ void ObjectTrackerNode::recognizedObjectCallback(
 			recognition_solved[rec_idx] = true;
 			object_for_recognition[rec_idx] = min_stale_ptr;
 			stale_objects_list_copy.remove(min_stale_ptr);
+			ROS_INFO("Object %zu found in the stale list. Putting it back into the regular list.", rec_idx);
+		}
+		else
+		{
+			ROS_ERROR("Wait, wut?");
 		}
 	}
 
-// Increase the age for each object in the new list, if needed delete old objs
-// Same for stale objs, plus move all objects currently in the regular list into the stale list
-// Regular list should be empty, add back solved recognitions trackers
+	// Increase the age for each object in the new list, if needed delete old objs
+	// Same for stale objs, plus move all objects currently in the regular list into the stale list
+	// Regular list should be empty, add back solved recognitions trackers
 
 	// Work on the new list
 	std::list<TrackedObjectPtr>::iterator list_iterator =
@@ -304,9 +313,9 @@ void ObjectTrackerNode::recognizedObjectCallback(
 		}
 		else
 		{
-			object.age()++;object
-			.newCount()++;list_iterator
-			++;
+			object.age()++;
+			object.newCount()++;
+			list_iterator++;
 		}
 	}
 
@@ -323,9 +332,9 @@ void ObjectTrackerNode::recognizedObjectCallback(
 		}
 		else
 		{
-			object.age()++;object
-			.staleCount()++;list_iterator
-			++;
+			object.age()++;
+			object.staleCount()++;
+			list_iterator++;
 		}
 	}
 
@@ -339,8 +348,7 @@ void ObjectTrackerNode::recognizedObjectCallback(
 		object.age()++;
 
 		// Add the object to the stale list
-		stale_objects_list_copy
-		.push_back(*list_iterator);
+		stale_objects_list_copy.push_back(*list_iterator);
 
 		list_iterator = regular_objects_list_copy.erase(list_iterator);
 	}
@@ -370,6 +378,7 @@ void ObjectTrackerNode::recognizedObjectCallback(
 		// Check if the recognition result contains segmented clouds
 		const bool segmentation_needed = true;
 //				msg_recognition->objects[0].point_clouds.empty();
+		//TODO ....
 
 		if (segmentation_needed)
 		{
@@ -469,6 +478,7 @@ void ObjectTrackerNode::recognizedObjectCallback(
 				if (nearest_cluster_idx == -1)
 				{
 					// WARN: detection without a cluster
+					ROS_WARN("Unable to find cluster for the recognition n. %zu.", recognition_idx);
 					continue;
 				}
 
@@ -497,6 +507,7 @@ void ObjectTrackerNode::recognizedObjectCallback(
 				//
 				new_objects_list_copy.push_back(new_object);
 				recognition_solved[recognition_idx] = true;
+				ROS_INFO("Object %zu added to the new list.", recognition_idx);
 
 			}
 		}
@@ -518,6 +529,8 @@ void ObjectTrackerNode::recognizedObjectCallback(
 						msg_recognition->objects[recognition_idx].point_clouds[0],
 						*cluster_cloud);
 
+				//TODO shall I dpownsample?
+
 				// Init tracker
 				TrackedObject::ParticleFilterTrackerPtr tracker;
 				initTracker(cluster_cloud, tracker);
@@ -536,6 +549,7 @@ void ObjectTrackerNode::recognizedObjectCallback(
 				//
 				new_objects_list_copy.push_back(new_object);
 				recognition_solved[recognition_idx] = true;
+				ROS_INFO("Object %zu added to the new list.", recognition_idx);
 			}
 		}
 
@@ -561,7 +575,7 @@ void ObjectTrackerNode::recognizedObjectCallback(
 	//
 	// Publish regular and stale
 	//
-	publishPoses(new_objects_list_copy, regular_objects_list_copy,
+	publishPoses(cloud->header.frame_id, cloud->header.stamp, new_objects_list_copy, regular_objects_list_copy,
 			stale_objects_list_copy);
 
 	{
@@ -628,13 +642,14 @@ void ObjectTrackerNode::cloudCallback(const PointCloud::ConstPtr& msg_cloud)
 	}
 
 	// Downsample
+	PointCloud::Ptr non_plane_cloud(new PointCloud());
 	PointCloud::Ptr cloud(new PointCloud());
+	//Utils::organizedMultiplaneSegmentation(msg_cloud, *non_plane_cloud);
 	Utils::gridSampleApprox(msg_cloud, *cloud);
-	//cloud = msg_cloud->makeShared();
 
 	// setSearchMethod protected???
-//	pcl::search::KdTree<PointType>::Ptr search (new pcl::search::KdTree<PointType>());
-//	search->setInputCloud(cloud);
+	pcl::search::KdTree<PointType>::Ptr search (new pcl::search::KdTree<PointType>());
+	search->setInputCloud(cloud);
 
 	//
 	// For each tracker in each list:
@@ -643,27 +658,27 @@ void ObjectTrackerNode::cloudCallback(const PointCloud::ConstPtr& msg_cloud)
 	BOOST_FOREACH(TrackedObjectPtr& object, new_objects_list_copy)
 	{
 		object->getTracker()->setInputCloud(cloud);
-//		object->getTracker()->setSearchMethod(search);
+		object->getTracker()->setSearchMethod(search);
 		object->getTracker()->compute();
 	}
 
 	BOOST_FOREACH(TrackedObjectPtr& object, regular_objects_list_copy)
 	{
 		object->getTracker()->setInputCloud(cloud);
-//		object->getTracker()->setSearchMethod(search);
+		object->getTracker()->setSearchMethod(search);
 		object->getTracker()->compute();
 	}
 
 	BOOST_FOREACH(TrackedObjectPtr& object, stale_objects_list_copy)
 	{
 		object->getTracker()->setInputCloud(cloud);
-//		object->getTracker()->setSearchMethod(search);
+		object->getTracker()->setSearchMethod(search);
 		object->getTracker()->compute();
 	}
 
 // Publish poses
-	// Potential issue
-	publishPoses(new_objects_list_copy, regular_objects_list_copy,
+	// Potential issue, publishing stale or deleted stuff
+	publishPoses(msg_cloud->header.frame_id, msg_cloud->header.stamp, new_objects_list_copy, regular_objects_list_copy,
 			stale_objects_list_copy);
 
 	// No need to put back the lists, work performed on the pointed obects
@@ -742,7 +757,7 @@ void ObjectTrackerNode::initTracker(const PointCloud::ConstPtr& object_cluster,
 //		pcl::tracking::KLDAdaptiveParticleFilterTracker<PointType, StateType> > specialized_track(
 //				new pcl::tracking::KLDAdaptiveParticleFilterTracker<PointType, StateType>());
 
-		specialized_track->setMaximumParticleNum(900);
+		specialized_track->setMaximumParticleNum(650);
 		specialized_track->setDelta(0.99);
 		specialized_track->setEpsilon(0.2);
 		StateType bin_size;
@@ -762,7 +777,7 @@ void ObjectTrackerNode::initTracker(const PointCloud::ConstPtr& object_cluster,
 	tracker->setInitialNoiseMean(default_initial_mean);
 	tracker->setIterationNum(1);
 
-	tracker->setParticleNum(400);
+	tracker->setParticleNum(300);
 	tracker->setResampleLikelihoodThr(0.01);
 	tracker->setUseNormal(false);
 	// setup coherences
@@ -781,7 +796,7 @@ void ObjectTrackerNode::initTracker(const PointCloud::ConstPtr& object_cluster,
 	boost::shared_ptr<pcl::tracking::HSVColorCoherence<PointType> > color_coherence =
 			boost::shared_ptr<pcl::tracking::HSVColorCoherence<PointType> >(
 					new pcl::tracking::HSVColorCoherence<PointType>());
-	color_coherence->setWeight(0.1);
+	color_coherence->setWeight(0.25);
 	coherence->addPointCoherence(color_coherence);
 
 	//boost::shared_ptr<pcl::search::KdTree<RefPointType> > search (new pcl::search::KdTree<RefPointType> (false));
@@ -821,7 +836,7 @@ void ObjectTrackerNode::initTracker(const PointCloud::ConstPtr& object_cluster,
 	tracker->setMinIndices(int(ref_cloud->points.size()) / 2);
 }
 
-void ObjectTrackerNode::publishPoses(
+void ObjectTrackerNode::publishPoses(const std::string& frame_id, const ros::Time& stamp,
 		const std::list<TrackedObjectPtr>& new_objects_list,
 		const std::list<TrackedObjectPtr>& regular_objects_list,
 		const std::list<TrackedObjectPtr>& stale_objects_list) const
@@ -832,8 +847,8 @@ void ObjectTrackerNode::publishPoses(
 	}
 
 	geometry_msgs::PoseArray pose_array;
-	pose_array.header.stamp = ros::Time::now();
-	pose_array.header.frame_id = frame_id_;
+	pose_array.header.stamp = stamp;
+	pose_array.header.frame_id = frame_id;
 
 	// Poses for the regular objects
 	std::list<TrackedObjectPtr>::const_iterator iter =
@@ -856,15 +871,15 @@ void ObjectTrackerNode::publishPoses(
 		iter++;
 	}
 
-	// Poses for the new objects
-	iter = new_objects_list.begin();
-	while (iter != new_objects_list.end())
-	{
-		const TrackedObject& object = **iter;
-		pose_array.poses.push_back(getPoseFromObject(object));
-
-		iter++;
-	}
+//	// Poses for the new objects
+//	iter = new_objects_list.begin();
+//	while (iter != new_objects_list.end())
+//	{
+//		const TrackedObject& object = **iter;
+//		pose_array.poses.push_back(getPoseFromObject(object));
+//
+//		iter++;
+//	}
 
 	// Publish
 	object_pose_publisher_.publish(pose_array);

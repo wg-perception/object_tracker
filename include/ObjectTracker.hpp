@@ -32,18 +32,17 @@ public:
 
 	bool init(ros::CallbackQueueInterface *object_recognition_queue);
 
-	ObjectTrackerNode(float same_object_threshold = 0.2, int new_threshold = 4,
-			int stale_threshold = 6) :
+	ObjectTrackerNode(float same_object_threshold = 0.25, int new_threshold = 2,
+			int stale_threshold = 4) :
 			nh_object_recognition_(), nh_(), object_recognition_subscriber_(
 					nh_object_recognition_, "recognized_object_array", 1), object_recognition_cloud_subscriber_(
 					nh_object_recognition_, "cloud_in", 1), synchronizer_(
-					SyncPolicy(50), object_recognition_subscriber_,
+					SyncPolicy(15), object_recognition_subscriber_,
 					object_recognition_cloud_subscriber_), cloud_subscriber_(), object_pose_publisher_(), /*segment_tracker_(
 			 "XXX", 2, 0.005, true, false, true, false),*/new_threshold_(
 					new_threshold), stale_threshold_(stale_threshold), same_object_threshold_(
 					same_object_threshold)
-	{
-	}
+	{}
 
 	void recognizedObjectCallback(
 			const object_recognition_msgs::RecognizedObjectArrayConstPtr& msg_recognition, const PointCloud::ConstPtr& cloud);
@@ -94,7 +93,7 @@ private:
 	geometry_msgs::Pose getPoseFromObject(const TrackedObject& object) const;
 	void initTracker(const PointCloud::ConstPtr& object_cluster,
 			TrackedObject::ParticleFilterTrackerPtr& tracker) const;
-	void publishPoses(const std::list<TrackedObjectPtr>& new_objects_list,
+	void publishPoses(const std::string& frame_id, const ros::Time& stamp, const std::list<TrackedObjectPtr>& new_objects_list,
 			const std::list<TrackedObjectPtr>& regular_objects_list,
 			const std::list<TrackedObjectPtr>& stale_objects_list) const;
 
