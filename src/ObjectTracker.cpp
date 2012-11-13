@@ -423,8 +423,7 @@ void ObjectTrackerNode::recognizedObjectCallback(
 	{
 
 		// Check if the recognition result contains segmented clouds
-		const bool segmentation_needed = true;
-//				msg_recognition->objects[0].point_clouds.empty();
+		const bool segmentation_needed = msg_recognition->objects[0].point_clouds.empty();
 		//TODO ....
 
 		if (segmentation_needed)
@@ -435,10 +434,10 @@ void ObjectTrackerNode::recognizedObjectCallback(
 			PointCloud::Ptr cloud_passthrough(new PointCloud());
 			PointCloud::Ptr non_plane_cloud(new PointCloud());
 
-			// First, pass through
-			Utils::filterPassThrough(cloud, *cloud_passthrough);
-
-			// Second, find and remove plane
+//			// First, pass through
+//			Utils::filterPassThrough(cloud, *cloud_passthrough);
+//
+//			// Second, find and remove plane
 //			pcl::ModelCoefficients::Ptr coefficients(
 //					new pcl::ModelCoefficients());
 //			pcl::PointIndices::Ptr inliers(new pcl::PointIndices());
@@ -548,8 +547,6 @@ void ObjectTrackerNode::recognizedObjectCallback(
 								tracker));
 
 				// First step of tracking with the old cloud to initialize everything
-//				new_object->getTracker()->setInputCloud(downsampled_cloud);
-//				new_object->getTracker()->compute();
 				new_object->performTracking(downsampled_cloud);
 
 				//
@@ -594,8 +591,6 @@ void ObjectTrackerNode::recognizedObjectCallback(
 								tracker));
 
 				// First step of tracking with the old cloud to initialize everything
-//				new_object->getTracker()->setInputCloud(downsampled_cloud);
-//				new_object->getTracker()->compute();
 				new_object->performTracking(downsampled_cloud);
 
 				//
@@ -711,40 +706,23 @@ void ObjectTrackerNode::cloudCallback(const PointCloud::ConstPtr& msg_cloud)
 	// Perform tracking
 	BOOST_FOREACH(TrackedObjectPtr& object, new_objects_list_copy)
 	{
-//		object->getTracker()->setInputCloud(cloud);
-//		object->getTracker()->setSearchMethod(search);
-//		object->getTracker()->compute();
 		object->performTracking(cloud, search);
 	}
 
 	BOOST_FOREACH(TrackedObjectPtr& object, regular_objects_list_copy)
 	{
-//		object->getTracker()->setInputCloud(cloud);
-//		object->getTracker()->setSearchMethod(search);
-//		object->getTracker()->compute();
 		object->performTracking(cloud, search);
 	}
 
 	BOOST_FOREACH(TrackedObjectPtr& object, stale_objects_list_copy)
 	{
-//		object->getTracker()->setInputCloud(cloud);
-//		object->getTracker()->setSearchMethod(search);
-//		object->getTracker()->compute();
 		object->performTracking(cloud, search);
 	}
 
-// Publish poses
-	// Potential issue, publishing stale or deleted stuff
+	// Publish poses
+	// TODO Potential issue, publishing stale or deleted stuff
 	publishPoses(msg_cloud->header.frame_id, msg_cloud->header.stamp, new_objects_list_copy, regular_objects_list_copy,
 			stale_objects_list_copy);
-
-	// No need to put back the lists, work performed on the pointed obects
-//	{
-////		boost::mutex::scoped_lock lists_lock(lists_mutex_);
-//		new_objects_list_ = new_objects_list_copy;
-//		regular_objects_list_ = regular_objects_list_copy;
-//		stale_objects_list_ = stale_objects_list_copy;
-//	}
 
 	// OLD
 	// do tracking using past_poses_
@@ -890,7 +868,7 @@ void ObjectTrackerNode::initTracker(const PointCloud::ConstPtr& object_cluster,
 	tracker->setReferenceCloud(centered_ref_cloud_downsampled);
 	tracker->setTrans(transformation);
 
-	tracker->setMinIndices(int(ref_cloud->points.size()) / 2);
+	tracker->setMinIndices(int(centered_ref_cloud_downsampled->points.size()) / 2);
 }
 
 void ObjectTrackerNode::publishPoses(const std::string& frame_id, const ros::Time& stamp,

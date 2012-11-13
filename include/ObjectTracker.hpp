@@ -33,7 +33,7 @@ public:
 	bool init(ros::CallbackQueueInterface *object_recognition_queue);
 
 	ObjectTrackerNode(float same_object_threshold = 0.2, int new_threshold = 3,
-			int stale_threshold = 3) :
+			int stale_threshold = 2) :
 			nh_object_recognition_(), nh_(), object_recognition_subscriber_(
 					nh_object_recognition_, "recognized_object_array", 1), object_recognition_cloud_subscriber_(
 					nh_object_recognition_, "cloud_in", 1), synchronizer_(
