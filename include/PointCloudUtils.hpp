@@ -64,7 +64,7 @@ public:
 	}
 
 	static void gridSample(const PointCloudConstPtr& cloud, PointCloud& result,
-			double leaf_size = 0.015)
+			double leaf_size = 0.02)
 	{
 		pcl::VoxelGrid<PointType> grid;
 		grid.setLeafSize(float(leaf_size), float(leaf_size), float(leaf_size));
@@ -73,7 +73,7 @@ public:
 	}
 
 	static void gridSampleApprox(const PointCloudConstPtr& cloud,
-			PointCloud& result, double leaf_size = 0.015)
+			PointCloud& result, double leaf_size = 0.02)
 	{
 		pcl::ApproximateVoxelGrid<PointType> grid;
 		grid.setLeafSize(static_cast<float>(leaf_size),
@@ -183,7 +183,7 @@ public:
 		pcl::OrganizedMultiPlaneSegmentation<PointType, pcl::Normal, pcl::Label> plane_segmentation;
 		plane_segmentation.setInputCloud(cloud);
 		plane_segmentation.setInputNormals(normals);
-		//plane_segmentation.setDistanceThreshold(0.02);
+		plane_segmentation.setDistanceThreshold(0.03);
 		//plane_segmentation.setAngularThreshold(pcl::deg2rad(5.0));
 		//plane_segmentation.setMaximumCurvature(0.01);
 		plane_segmentation.setProjectPoints(true);

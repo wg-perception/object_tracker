@@ -55,13 +55,16 @@ bool ObjectTrackerNode::init(
 
 	boost::function<void(PointCloud::ConstPtr)> cloud_callback(
 			boost::bind(&ObjectTrackerNode::cloudCallback, this, _1));
-	cloud_subscriber_ = nh_.subscribe<PointCloud::ConstPtr>("cloud_in", 2,
+	cloud_subscriber_ = nh_.subscribe<PointCloud::ConstPtr>("cloud_in", 5,
 			cloud_callback);
 
 	object_pose_publisher_ = nh_.advertise<geometry_msgs::PoseArray>(
 			"tracked_poses", 1);
 	cloud_no_plane_publisher_ = nh_.advertise<PointCloud>(
 			"cloud_no_plane", 1);
+	particles_publisher_ = nh_.advertise<StateCloud>(
+			"cloud_particles", 1);
+	recognized_object_array_publisher_ = nh_.advertise<object_recognition_msgs::RecognizedObjectArray>("tracked_objects", 1);
 
 	//segment_tracker_.run();
 
@@ -75,20 +78,28 @@ void ObjectTrackerNode::recognizedObjectCallback(
 		const object_recognition_msgs::RecognizedObjectArrayConstPtr& msg_recognition, const PointCloud::ConstPtr& cloud)
 {
 	PointCloud::Ptr downsampled_cloud(new PointCloud());
+	PointCloud::ConstPtr old_cloud(new PointCloud());
 
 	ROS_INFO(
 			"Received a callback with %zu recognitions.", msg_recognition->objects.size());
 
-//	{
-//		boost::mutex::scoped_lock prev_cloud_lock(previous_cloud_mutex_);
-//		cloud = previous_cloud_;
-//	}
+	{
+		boost::mutex::scoped_lock prev_cloud_lock(previous_cloud_mutex_);
+		old_cloud = previous_cloud_;
+	}
 
-//	if (!cloud)
-//	{
-//		ROS_INFO("Received a detection callback but cloud never received.");
-//		return;
-//	}
+	if (!old_cloud)
+	{
+		ROS_INFO("Received a detection callback but cloud never received.");
+		return;
+	}
+
+	ROS_INFO("Delta: %f Old timestamp: %f New Timestamp: %f", cloud->header.stamp.toSec() - old_cloud->header.stamp.toSec(), old_cloud->header.stamp.toSec(), cloud->header.stamp.toSec());
+	if(fabs(cloud->header.stamp.toSec() - old_cloud->header.stamp.toSec()) > 2.5)
+	{
+		ROS_WARN("Running slow, delta T > 2.5s, returning.");
+		return;
+	}
 
 	// Copy lists into local scope
 	std::list<TrackedObjectPtr> new_objects_list_copy;
@@ -101,7 +112,7 @@ void ObjectTrackerNode::recognizedObjectCallback(
 		stale_objects_list_copy = stale_objects_list_;
 	}
 
-	// If there aare no recognitions...
+	// If there are no recognitions...
 	if (msg_recognition->objects.size() == 0)
 	{
 		// Everything regular becomes stale
@@ -125,8 +136,8 @@ void ObjectTrackerNode::recognizedObjectCallback(
 		iter = new_objects_list_copy.begin();
 		while (iter != new_objects_list_copy.end())
 		{
-			(*iter)->age()++;(
-*			iter)->newCount()++;
+			(*iter)->age()++;
+			(*iter)->newCount()++;
 
 			if ((*iter)->newCount() > new_threshold_)
 			{
@@ -142,8 +153,8 @@ void ObjectTrackerNode::recognizedObjectCallback(
 		iter = stale_objects_list_copy.begin();
 		while (iter != stale_objects_list_copy.end())
 		{
-			(*iter)->age()++;(
-*			iter)->staleCount()++;
+			(*iter)->age()++;
+			(*iter)->staleCount()++;
 
 			if ((*iter)->staleCount() > stale_threshold_)
 			{
@@ -204,6 +215,9 @@ void ObjectTrackerNode::recognizedObjectCallback(
 		TrackedObjectPtr min_regular_ptr;
 		TrackedObjectPtr min_stale_ptr;
 
+		StateType object_centroid;
+		ros::Time object_stamp;
+
 		// New list
 		BOOST_FOREACH(TrackedObjectPtr object, new_objects_list_copy)
 		{
@@ -212,8 +226,19 @@ void ObjectTrackerNode::recognizedObjectCallback(
 				continue;
 			}
 
+			if(!object->getPoseAt(cloud->header.stamp, object_centroid, object_stamp))
+			{
+				ROS_ERROR("Object does not have previous poses, this should not happen.");
+				return;
+			}
+
+			if(fabs((object_stamp - cloud->header.stamp).toSec()) > 1.0)
+			{
+				ROS_WARN("Delta time between recognition and tracking in the new list: %f Object stamp: %f Cloud stamp: %f", (object_stamp - cloud->header.stamp).toSec(), object_stamp.toSec(), cloud->header.stamp.toSec());
+			}
+
 			float distance = pcl::euclideanDistance(
-					current_recognition_centroid, object->getCentroid());
+					current_recognition_centroid, object_centroid);
 			if (distance < min_new_distance)
 			{
 				min_new_distance = distance;
@@ -229,8 +254,19 @@ void ObjectTrackerNode::recognizedObjectCallback(
 				continue;
 			}
 
+			if(!object->getPoseAt(cloud->header.stamp, object_centroid, object_stamp))
+			{
+				ROS_ERROR("Object does not have previous poses, this should not happen.");
+				return;
+			}
+
+			if(fabs((object_stamp - cloud->header.stamp).toSec()) > 1.0)
+			{
+				ROS_WARN("Delta time between recognition and tracking in the regular list: %f", (object_stamp - cloud->header.stamp).toSec());
+			}
+
 			float distance = pcl::euclideanDistance(
-					current_recognition_centroid, object->getCentroid());
+					current_recognition_centroid, object_centroid);
 			if (distance < min_regular_distance)
 			{
 				min_regular_distance = distance;
@@ -246,8 +282,19 @@ void ObjectTrackerNode::recognizedObjectCallback(
 				continue;
 			}
 
+			if(!object->getPoseAt(cloud->header.stamp, object_centroid, object_stamp))
+			{
+				ROS_ERROR("Object does not have previous poses, this should not happen.");
+				return;
+			}
+
+			if(fabs((object_stamp - cloud->header.stamp).toSec()) > 1.0)
+			{
+				ROS_WARN("Delta time between recognition and tracking in the stale list: %f", (object_stamp - cloud->header.stamp).toSec());
+			}
+
 			float distance = pcl::euclideanDistance(
-					current_recognition_centroid, object->getCentroid());
+					current_recognition_centroid, object_centroid);
 			if (distance < min_stale_distance)
 			{
 				min_stale_distance = distance;
@@ -492,15 +539,18 @@ void ObjectTrackerNode::recognizedObjectCallback(
 				// Init tracker
 				TrackedObject::ParticleFilterTrackerPtr tracker;
 				initTracker(cluster_cloud, tracker);
+				std::stringstream ss;
+				ss << msg_recognition->objects[recognition_idx].id.id << last_id_++;
 
 				TrackedObjectPtr new_object(
 						new TrackedObject(
-								msg_recognition->objects[recognition_idx].id,
+								msg_recognition->objects[recognition_idx].id, ss.str(),
 								tracker));
 
 				// First step of tracking with the old cloud to initialize everything
-				new_object->getTracker()->setInputCloud(downsampled_cloud);
-				new_object->getTracker()->compute();
+//				new_object->getTracker()->setInputCloud(downsampled_cloud);
+//				new_object->getTracker()->compute();
+				new_object->performTracking(downsampled_cloud);
 
 				//
 				// Add tracker to the new list
@@ -535,14 +585,18 @@ void ObjectTrackerNode::recognizedObjectCallback(
 				TrackedObject::ParticleFilterTrackerPtr tracker;
 				initTracker(cluster_cloud, tracker);
 
+				std::stringstream ss;
+				ss << msg_recognition->objects[recognition_idx].id.id << last_id_++;
+
 				TrackedObjectPtr new_object(
 						new TrackedObject(
-								msg_recognition->objects[recognition_idx].id,
+								msg_recognition->objects[recognition_idx].id, ss.str(),
 								tracker));
 
 				// First step of tracking with the old cloud to initialize everything
-				new_object->getTracker()->setInputCloud(downsampled_cloud);
-				new_object->getTracker()->compute();
+//				new_object->getTracker()->setInputCloud(downsampled_cloud);
+//				new_object->getTracker()->compute();
+				new_object->performTracking(downsampled_cloud);
 
 				//
 				// Add tracker to the new list
@@ -657,23 +711,26 @@ void ObjectTrackerNode::cloudCallback(const PointCloud::ConstPtr& msg_cloud)
 	// Perform tracking
 	BOOST_FOREACH(TrackedObjectPtr& object, new_objects_list_copy)
 	{
-		object->getTracker()->setInputCloud(cloud);
-		object->getTracker()->setSearchMethod(search);
-		object->getTracker()->compute();
+//		object->getTracker()->setInputCloud(cloud);
+//		object->getTracker()->setSearchMethod(search);
+//		object->getTracker()->compute();
+		object->performTracking(cloud, search);
 	}
 
 	BOOST_FOREACH(TrackedObjectPtr& object, regular_objects_list_copy)
 	{
-		object->getTracker()->setInputCloud(cloud);
-		object->getTracker()->setSearchMethod(search);
-		object->getTracker()->compute();
+//		object->getTracker()->setInputCloud(cloud);
+//		object->getTracker()->setSearchMethod(search);
+//		object->getTracker()->compute();
+		object->performTracking(cloud, search);
 	}
 
 	BOOST_FOREACH(TrackedObjectPtr& object, stale_objects_list_copy)
 	{
-		object->getTracker()->setInputCloud(cloud);
-		object->getTracker()->setSearchMethod(search);
-		object->getTracker()->compute();
+//		object->getTracker()->setInputCloud(cloud);
+//		object->getTracker()->setSearchMethod(search);
+//		object->getTracker()->compute();
+		object->performTracking(cloud, search);
 	}
 
 // Publish poses
@@ -761,9 +818,9 @@ void ObjectTrackerNode::initTracker(const PointCloud::ConstPtr& object_cluster,
 		specialized_track->setDelta(0.99);
 		specialized_track->setEpsilon(0.2);
 		StateType bin_size;
-		bin_size.x = 0.1f;
-		bin_size.y = 0.1f;
-		bin_size.z = 0.1f;
+		bin_size.x = 0.05f;
+		bin_size.y = 0.05f;
+		bin_size.z = 0.05f;
 		bin_size.roll = 0.1f;
 		bin_size.pitch = 0.1f;
 		bin_size.yaw = 0.1f;
@@ -777,8 +834,8 @@ void ObjectTrackerNode::initTracker(const PointCloud::ConstPtr& object_cluster,
 	tracker->setInitialNoiseMean(default_initial_mean);
 	tracker->setIterationNum(1);
 
-	tracker->setParticleNum(300);
-	tracker->setResampleLikelihoodThr(0.01);
+	tracker->setParticleNum(350);
+	tracker->setResampleLikelihoodThr(0.00);
 	tracker->setUseNormal(false);
 	// setup coherences
 	pcl::tracking::ApproxNearestPairPointCloudCoherence<PointType>::Ptr coherence =
@@ -796,7 +853,7 @@ void ObjectTrackerNode::initTracker(const PointCloud::ConstPtr& object_cluster,
 	boost::shared_ptr<pcl::tracking::HSVColorCoherence<PointType> > color_coherence =
 			boost::shared_ptr<pcl::tracking::HSVColorCoherence<PointType> >(
 					new pcl::tracking::HSVColorCoherence<PointType>());
-	color_coherence->setWeight(0.25);
+	color_coherence->setWeight(0.2);
 	coherence->addPointCoherence(color_coherence);
 
 	//boost::shared_ptr<pcl::search::KdTree<RefPointType> > search (new pcl::search::KdTree<RefPointType> (false));
@@ -804,7 +861,7 @@ void ObjectTrackerNode::initTracker(const PointCloud::ConstPtr& object_cluster,
 //			new pcl::search::Octree<PointType>(0.01)); //TODO readd octree when linker is ok with that
 	//boost::shared_ptr<pcl::search::OrganizedNeighbor<RefPointType> > search (new pcl::search::OrganizedNeighbor<RefPointType>);
 //	coherence->setSearchMethod(search);
-	coherence->setMaximumDistance(0.01);
+	coherence->setMaximumDistance(0.035);
 	tracker->setCloudCoherence(coherence);
 
 	//
@@ -841,14 +898,22 @@ void ObjectTrackerNode::publishPoses(const std::string& frame_id, const ros::Tim
 		const std::list<TrackedObjectPtr>& regular_objects_list,
 		const std::list<TrackedObjectPtr>& stale_objects_list) const
 {
-	if (object_pose_publisher_.getNumSubscribers() == 0)
+	if (object_pose_publisher_.getNumSubscribers() == 0 && recognized_object_array_publisher_.getNumSubscribers() == 0)
 	{
 		return;
 	}
 
+//	StateCloud particles_cloud;
+//	particles_cloud.header.stamp = stamp;
+//	particles_cloud.header.frame_id = frame_id;
+
 	geometry_msgs::PoseArray pose_array;
 	pose_array.header.stamp = stamp;
 	pose_array.header.frame_id = frame_id;
+
+	object_recognition_msgs::RecognizedObjectArray tracked_objects;
+	tracked_objects.header.stamp = stamp;
+	tracked_objects.header.frame_id = frame_id;
 
 	// Poses for the regular objects
 	std::list<TrackedObjectPtr>::const_iterator iter =
@@ -856,7 +921,19 @@ void ObjectTrackerNode::publishPoses(const std::string& frame_id, const ros::Tim
 	while (iter != regular_objects_list.end())
 	{
 		const TrackedObject& object = **iter;
-		pose_array.poses.push_back(getPoseFromObject(object));
+
+		geometry_msgs::Pose pose = getPoseFromObject(object);
+		pose_array.poses.push_back(pose);
+
+//		particles_cloud += *(object.getParticles());
+
+		object_recognition_msgs::RecognizedObject rec_obj;
+		rec_obj.header.stamp = stamp;
+		rec_obj.header.frame_id = frame_id;
+		rec_obj.id = object.getObjectId();
+		rec_obj.id.id = object.getName();
+		rec_obj.pose.pose.pose = pose;
+		tracked_objects.objects.push_back(rec_obj);
 
 		iter++;
 	}
@@ -866,7 +943,19 @@ void ObjectTrackerNode::publishPoses(const std::string& frame_id, const ros::Tim
 	while (iter != stale_objects_list.end())
 	{
 		const TrackedObject& object = **iter;
-		pose_array.poses.push_back(getPoseFromObject(object));
+
+		geometry_msgs::Pose pose = getPoseFromObject(object);
+		pose_array.poses.push_back(pose);
+
+//		particles_cloud += *(object.getParticles());
+
+		object_recognition_msgs::RecognizedObject rec_obj;
+		rec_obj.header.stamp = stamp;
+		rec_obj.header.frame_id = frame_id;
+		rec_obj.id = object.getObjectId();
+		rec_obj.id.id = object.getName();
+		rec_obj.pose.pose.pose = pose;
+		tracked_objects.objects.push_back(rec_obj);
 
 		iter++;
 	}
@@ -882,5 +971,10 @@ void ObjectTrackerNode::publishPoses(const std::string& frame_id, const ros::Tim
 //	}
 
 	// Publish
-	object_pose_publisher_.publish(pose_array);
+	if(object_pose_publisher_.getNumSubscribers() > 0)
+		object_pose_publisher_.publish(pose_array);
+	if(recognized_object_array_publisher_.getNumSubscribers() > 0)
+		recognized_object_array_publisher_.publish(tracked_objects);
+
+//	particles_publisher_.publish(particles_cloud);
 }
