@@ -4,7 +4,11 @@ cmake_minimum_required(VERSION 2.8.5)
 # CATKIN
 # -----------------------------------------------
 project(object_tracker)
-find_package(catkin REQUIRED)
+find_package(catkin REQUIRED COMPONENTS roscpp rospy genmsg object_recognition_core object_recognition_msgs pcl pcl_ros std_msgs geometry_msgs visualization_msgs tf)
+
+# Services
+add_service_files(DIRECTORY srv FILES EstimateRotation.srv)
+generate_messages(DEPENDENCIES geometry_msgs std_msgs)
 
 if (${catkin_VERSION} VERSION_GREATER "0.5.28")
     catkin_package(INCLUDE_DIRS include)
@@ -14,6 +18,7 @@ else()
                     INCLUDE_DIRS include
     )
 endif()
+
 
 # install targets for all things python
 #catkin_python_setup()
@@ -27,7 +32,7 @@ endif()
 
 # set the build type
 if (NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE Debug CACHE STRING
+    set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING
         "Choose the type of build. Options are: None, Debug, Release, RelWithDebInfo, MinSizeRel"
     FORCE)
 endif()
@@ -68,7 +73,8 @@ add_definitions(-DEIGEN_USE_NEW_STDVECTOR
 include_directories(SYSTEM  ${OPENCV_INCLUDE_DIRS}
                             ${Boost_INCLUDE_DIRS}
 )
-include_directories(include)
+include_directories(include
+					${catkin_INCLUDE_DIRS})
 #include_directories(${PCL_INCLUDE_DIRS})
 
 # -----------------------------------------------

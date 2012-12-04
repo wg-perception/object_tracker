@@ -2,6 +2,7 @@
 #include "PointCloudUtils.hpp"
 #include <ros/ros.h>
 #include <geometry_msgs/PoseArray.h>
+#include <visualization_msgs/MarkerArray.h>
 #include <pcl/common/transforms.h>
 #include <pcl/search/search.h>
 #include <pcl/search/kdtree.h>
@@ -65,6 +66,7 @@ bool ObjectTrackerNode::init(
 	particles_publisher_ = nh_.advertise<StateCloud>(
 			"cloud_particles", 1);
 	recognized_object_array_publisher_ = nh_.advertise<object_recognition_msgs::RecognizedObjectArray>("tracked_objects", 1);
+	object_names_publisher_ = nh_.advertise<visualization_msgs::MarkerArray>("object_names", 1);
 
 	//segment_tracker_.run();
 
@@ -78,27 +80,39 @@ void ObjectTrackerNode::recognizedObjectCallback(
 		const object_recognition_msgs::RecognizedObjectArrayConstPtr& msg_recognition, const PointCloud::ConstPtr& cloud)
 {
 	PointCloud::Ptr downsampled_cloud(new PointCloud());
-	PointCloud::ConstPtr old_cloud(new PointCloud());
+//	PointCloud::ConstPtr old_cloud(new PointCloud());
 
 	ROS_INFO(
 			"Received a callback with %zu recognitions.", msg_recognition->objects.size());
 
-	{
-		boost::mutex::scoped_lock prev_cloud_lock(previous_cloud_mutex_);
-		old_cloud = previous_cloud_;
-	}
+//	{
+//		boost::mutex::scoped_lock prev_cloud_lock(previous_cloud_mutex_);
+//		old_cloud = previous_cloud_;
+//	}
+//
+//	if (!old_cloud)
+//	{
+//		ROS_INFO("Received a detection callback but cloud never received.");
+//		return;
+//	}
 
-	if (!old_cloud)
-	{
-		ROS_INFO("Received a detection callback but cloud never received.");
-		return;
-	}
+//	ROS_INFO("Delta: %f Old timestamp: %f New Timestamp: %f", cloud->header.stamp.toSec() - old_cloud->header.stamp.toSec(), old_cloud->header.stamp.toSec(), cloud->header.stamp.toSec());
+//	if(fabs(cloud->header.stamp.toSec() - old_cloud->header.stamp.toSec()) > 2.5)
+//	{
+//		ROS_WARN("Running slow, delta T > 2.5s, returning.");
+//		return;
+//	}
 
-	ROS_INFO("Delta: %f Old timestamp: %f New Timestamp: %f", cloud->header.stamp.toSec() - old_cloud->header.stamp.toSec(), old_cloud->header.stamp.toSec(), cloud->header.stamp.toSec());
-	if(fabs(cloud->header.stamp.toSec() - old_cloud->header.stamp.toSec()) > 2.5)
 	{
-		ROS_WARN("Running slow, delta T > 2.5s, returning.");
-		return;
+		ros::Time now (ros::Time::now());
+		double delta_t = (now - cloud->header.stamp).toSec();
+
+		ROS_INFO("Delta: %f Cloud timestamp: %f Now Timestamp: %f", delta_t, cloud->header.stamp.toSec(), now.toSec());
+		if(delta_t > 2.5)
+		{
+			ROS_WARN("Running slow, delta T > 2.5s, returning.");
+			return;
+		}
 	}
 
 	// Copy lists into local scope
@@ -679,6 +693,12 @@ void ObjectTrackerNode::cloudCallback(const PointCloud::ConstPtr& msg_cloud)
 		previous_cloud_ = msg_cloud;
 	}
 
+	if((ros::Time::now() - msg_cloud->header.stamp).toSec() > 1.0)
+	{
+		ROS_WARN("Cloud callback running slow. Delta T > 1.0s: %f. Returning.", (ros::Time::now() - msg_cloud->header.stamp).toSec());
+		return;
+	}
+
 	// Copy lists into local scope
 	std::list<TrackedObjectPtr> new_objects_list_copy;
 	std::list<TrackedObjectPtr> regular_objects_list_copy;
@@ -876,7 +896,7 @@ void ObjectTrackerNode::publishPoses(const std::string& frame_id, const ros::Tim
 		const std::list<TrackedObjectPtr>& regular_objects_list,
 		const std::list<TrackedObjectPtr>& stale_objects_list) const
 {
-	if (object_pose_publisher_.getNumSubscribers() == 0 && recognized_object_array_publisher_.getNumSubscribers() == 0)
+	if (object_pose_publisher_.getNumSubscribers() == 0 && recognized_object_array_publisher_.getNumSubscribers() == 0 && object_names_publisher_.getNumSubscribers() == 0)
 	{
 		return;
 	}
@@ -892,6 +912,10 @@ void ObjectTrackerNode::publishPoses(const std::string& frame_id, const ros::Tim
 	object_recognition_msgs::RecognizedObjectArray tracked_objects;
 	tracked_objects.header.stamp = stamp;
 	tracked_objects.header.frame_id = frame_id;
+
+	visualization_msgs::MarkerArray object_names;
+	std::string ns = nh_.getNamespace();
+	int current_id = 0;
 
 	// Poses for the regular objects
 	std::list<TrackedObjectPtr>::const_iterator iter =
@@ -912,6 +936,23 @@ void ObjectTrackerNode::publishPoses(const std::string& frame_id, const ros::Tim
 		rec_obj.id.id = object.getName();
 		rec_obj.pose.pose.pose = pose;
 		tracked_objects.objects.push_back(rec_obj);
+
+		visualization_msgs::Marker marker;
+		marker.header.stamp = stamp;
+		marker.header.frame_id = frame_id;
+		marker.ns = ns;
+		marker.id = current_id++;
+		marker.frame_locked = true;
+		marker.lifetime = ros::Duration(2,0);
+		marker.type = visualization_msgs::Marker::TEXT_VIEW_FACING;
+		marker.text = object.getName();
+		marker.pose  = pose;
+		marker.scale.z = 0.1;
+		marker.color.a = 1.0;
+		marker.color.r = 1.0;
+		marker.color.g = 1.0;
+		marker.color.b = 1.0;
+		object_names.markers.push_back(marker);
 
 		iter++;
 	}
@@ -935,6 +976,23 @@ void ObjectTrackerNode::publishPoses(const std::string& frame_id, const ros::Tim
 		rec_obj.pose.pose.pose = pose;
 		tracked_objects.objects.push_back(rec_obj);
 
+		visualization_msgs::Marker marker;
+		marker.header.stamp = stamp;
+		marker.header.frame_id = frame_id;
+		marker.ns = ns;
+		marker.id = current_id++;
+		marker.frame_locked = true;
+		marker.lifetime = ros::Duration(2,0);
+		marker.type = visualization_msgs::Marker::TEXT_VIEW_FACING;
+		marker.text = object.getName();
+		marker.pose  = pose;
+		marker.scale.z = 0.1;
+		marker.color.a = 1.0;
+		marker.color.r = 1.0;
+		marker.color.g = 1.0;
+		marker.color.b = 1.0;
+		object_names.markers.push_back(marker);
+
 		iter++;
 	}
 
@@ -943,7 +1001,36 @@ void ObjectTrackerNode::publishPoses(const std::string& frame_id, const ros::Tim
 //	while (iter != new_objects_list.end())
 //	{
 //		const TrackedObject& object = **iter;
-//		pose_array.poses.push_back(getPoseFromObject(object));
+//
+//		geometry_msgs::Pose pose = getPoseFromObject(object);
+//		pose_array.poses.push_back(pose);
+//
+////		particles_cloud += *(object.getParticles());
+//
+//		object_recognition_msgs::RecognizedObject rec_obj;
+//		rec_obj.header.stamp = stamp;
+//		rec_obj.header.frame_id = frame_id;
+//		rec_obj.id = object.getObjectId();
+//		rec_obj.id.id = object.getName();
+//		rec_obj.pose.pose.pose = pose;
+//		tracked_objects.objects.push_back(rec_obj);
+//
+//		visualization_msgs::Marker marker;
+//		marker.header.stamp = stamp;
+//		marker.header.frame_id = frame_id;
+//		marker.ns = ns;
+//		marker.id = current_id++;
+//		marker.frame_locked = true;
+//		marker.lifetime = ros::Duration(2,0);
+//		marker.type = visualization_msgs::Marker::TEXT_VIEW_FACING;
+//		marker.text = object.getName();
+//		marker.pose  = pose;
+//		marker.scale.z = 0.1;
+//		marker.color.a = 1.0;
+//		marker.color.r = 1.0;
+//		marker.color.g = 1.0;
+//		marker.color.b = 1.0;
+//		object_names.markers.push_back(marker);
 //
 //		iter++;
 //	}
@@ -953,6 +1040,8 @@ void ObjectTrackerNode::publishPoses(const std::string& frame_id, const ros::Tim
 		object_pose_publisher_.publish(pose_array);
 	if(recognized_object_array_publisher_.getNumSubscribers() > 0)
 		recognized_object_array_publisher_.publish(tracked_objects);
+	if(object_names_publisher_.getNumSubscribers() > 0)
+		object_names_publisher_.publish(object_names);
 
 //	particles_publisher_.publish(particles_cloud);
 }

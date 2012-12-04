@@ -1,0 +1,7 @@
+geometry_msgs/PoseWithCovarianceStamped[] poses
+---
+bool success
+geometry_msgs/Point center
+geometry_msgs/Vector3 axis
+float32 radius
+float32 theta

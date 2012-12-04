@@ -121,13 +121,15 @@ public:
 			const typename pcl::search::Search<PointType>::Ptr& search)
 	{
 		tracker_->setInputCloud(cloud);
-		tracker_->setSearchMethod(search);
+		//tracker_->setSearchMethod(search);
 		tracker_->compute();
 
 		{
-			//boost::mutex::scoped_lock past_poses_lock(past_poses_mutex_);
-			past_poses_.push_back(
+			boost::mutex::scoped_lock past_poses_lock(past_poses_mutex_);
+			past_poses_.push_front(
 					TimeState(cloud->header.stamp, tracker_->getResult()));
+			if(past_poses_.size() > 30)
+				past_poses_.resize(30);
 		}
 	}
 
@@ -144,23 +146,23 @@ public:
 		std::deque<TimeState> past_poses_copy;
 
 		{
-		//	boost::mutex::scoped_lock past_poses_lock(past_poses_mutex_);
+			boost::mutex::scoped_lock past_poses_lock(past_poses_mutex_);
 			past_poses_copy = past_poses_;
 		}
 
 		if (past_poses_copy.empty())
 			return false;
 
-		TimeState result = *past_poses_copy.begin();
+		TimeState result = *(past_poses_copy.rbegin());
 		if (result.first <= time)
 		{
-			typename std::deque<TimeState>::const_iterator iter =
-					past_poses_copy.begin()++;
-			while(iter != past_poses_copy.end() && iter->first <= time)
+			typename std::deque<TimeState>::const_reverse_iterator iter =
+					past_poses_copy.rbegin()++;
+			while(iter != past_poses_copy.rend() && iter->first <= time)
 			{
 				iter++;
 			}
-			if (iter != past_poses_copy.end())
+			if (iter != past_poses_copy.rend())
 			{
 				// check which time is the nearest
 				double delta_after = fabs(iter->first.toSec() - time.toSec());
