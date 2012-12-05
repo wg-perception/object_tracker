@@ -8,6 +8,7 @@ find_package(catkin REQUIRED COMPONENTS roscpp rospy genmsg object_recognition_c
 
 # Services
 add_service_files(DIRECTORY srv FILES EstimateRotation.srv)
+add_message_files(DIRECTORY msg FILES RotationParameters.msg)
 generate_messages(DEPENDENCIES geometry_msgs std_msgs)
 
 if (${catkin_VERSION} VERSION_GREATER "0.5.28")
