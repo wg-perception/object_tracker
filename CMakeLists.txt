@@ -4,7 +4,10 @@ cmake_minimum_required(VERSION 2.8.5)
 # CATKIN
 # -----------------------------------------------
 project(object_tracker)
-find_package(catkin REQUIRED COMPONENTS roscpp rospy genmsg object_recognition_core object_recognition_msgs pcl pcl_ros std_msgs geometry_msgs visualization_msgs tf)
+find_package(catkin REQUIRED COMPONENTS roscpp rospy genmsg object_recognition_core object_recognition_msgs pcl pcl_ros std_msgs geometry_msgs visualization_msgs tf dynamic_reconfigure)
+
+# install targets for all things python
+catkin_python_setup()
 
 # Services
 add_service_files(DIRECTORY srv FILES EstimateRotation.srv)
@@ -12,17 +15,18 @@ add_message_files(DIRECTORY msg FILES RotationParameters.msg)
 generate_messages(DEPENDENCIES geometry_msgs std_msgs)
 
 if (${catkin_VERSION} VERSION_GREATER "0.5.28")
+    generate_dynamic_reconfigure_options(cfg/RotatingObjectTracker.cfg) 
     catkin_package(INCLUDE_DIRS include)
 else()
+	#add dynamic reconfigure api
+	rosbuild_find_ros_package(dynamic_reconfigure)
+	include(${dynamic_reconfigure_PACKAGE_PATH}/cmake/cfgbuild.cmake)
+	#gencfg()
     catkin_stack()
     catkin_project(${PROJECT_NAME}
                     INCLUDE_DIRS include
     )
 endif()
-
-
-# install targets for all things python
-#catkin_python_setup()
 
 # -----------------------------------------------
 # COMPILER FLAGS
@@ -30,7 +34,7 @@ endif()
 
 # include all warning types
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Werror -Wno-unused-parameter -pedantic")
-
+ 
 # set the build type
 if (NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING

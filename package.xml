@@ -23,7 +23,8 @@
   <build_depend>roscpp</build_depend>
   <build_depend>vision_opencv</build_depend>
   <build_depend>pcl</build_depend>
-  <build_depend>pcl_ros</build_depend>  
+  <build_depend>pcl_ros</build_depend>
+  <build_depend>dynamic_reconfigure</build_depend>  
 
   <run_depend>cvmatio</run_depend>
   <run_depend>cv_bridge</run_depend>
@@ -38,5 +39,6 @@
   <run_depend>object_recognition_tabletop</run_depend>
   <run_depend>openni-dev</run_depend>
   <run_depend>pcl</run_depend>
-  <run_depend>pcl_ros</run_depend>  
+  <run_depend>pcl_ros</run_depend>
+  <run_depend>dynamic_reconfigure</run_depend>  
 </package>
