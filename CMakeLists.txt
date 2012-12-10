@@ -1,4 +1,4 @@
-# PartsBasedDetector CMakeLists.txt
+# object_tracker CMakeLists.txt
 cmake_minimum_required(VERSION 2.8.5)
 # -----------------------------------------------
 # CATKIN
@@ -15,7 +15,7 @@ add_message_files(DIRECTORY msg FILES RotationParameters.msg)
 generate_messages(DEPENDENCIES geometry_msgs std_msgs)
 
 if (${catkin_VERSION} VERSION_GREATER "0.5.28")
-    generate_dynamic_reconfigure_options(cfg/RotatingObjectTracker.cfg) 
+    #generate_dynamic_reconfigure_options(cfg/RotatingObjectTracker.cfg) 
     catkin_package(INCLUDE_DIRS include)
 else()
 	#add dynamic reconfigure api
