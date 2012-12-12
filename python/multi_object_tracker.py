@@ -46,6 +46,7 @@ from numpy import linalg
 from dynamic_reconfigure.server import Server
 from object_recognition_msgs.msg import RecognizedObjectArray, RecognizedObject, ObjectId, ObjectRecognitionAction, ObjectRecognitionGoal, ObjectRecognitionResult
 from geometry_msgs.msg import PoseWithCovarianceStamped, PoseStamped, Point, Vector3, PoseArray, Pose, PointStamped
+from std_msgs.msg import Header 
 from visualization_msgs.msg import MarkerArray, Marker
 from object_tracker.srv import EstimateRotation, EstimateRotationResponse, EstimateRotationRequest
 from object_tracker.msg import RotationParameters
@@ -59,7 +60,8 @@ class TrackedObject:
     poses = []
     stamps = [] 
     radius = 0.0
-    phase = 0.0   
+    phase = 0.0
+    confidence = 0.0   
 
 class Tracker:
     _initialized = False
@@ -164,7 +166,7 @@ class Tracker:
         self._previous_angle = self._rotation_speed[-1] * (time.to_sec() - self._last_tf_broadcast) + self._previous_angle
         self._tf_publisher.sendTransform(self._rotation_center[-1,:], tf.transformations.quaternion_from_matrix(self._reference_frame), 
                                          time, self._intermediate_tf_frame, self._base_tf_frame)
-        self._tf_publisher.sendTransform([0, 0, 0], tf.transformations.quaternion_about_axis(self._previous_angle, [0, 0, 1]),
+        self._tf_publisher.sendTransform([0.0, 0.0, 0.0], tf.transformations.quaternion_about_axis(self._previous_angle, [0.0, 0.0, 1.0]),
                                          time, self._rotating_tf_frame, self._intermediate_tf_frame)
         
         for obj in self._tracked_objects:
@@ -173,7 +175,7 @@ class Tracker:
             
             obj_x = obj.radius * math.cos(obj.phase)
             obj_y = obj.radius * math.sin(obj.phase)
-            self._tf_publisher.sendTransform([obj_x, obj_y, 0], [0, 0, 0, 1], time, self.tf_frame_for_object(obj), self._rotating_tf_frame)
+            self._tf_publisher.sendTransform([obj_x, obj_y, 0.0], [0, 0, 0, 1], time, self.tf_frame_for_object(obj), self._rotating_tf_frame)
         
         self._last_tf_broadcast = time.to_sec()
     
@@ -219,11 +221,7 @@ class Tracker:
             
         self._marker_publisher.publish(marker_array)
         
-    def publish_rotation_msg(self, new_centers, new_axii, new_speeds):
-#        new_axii = np.subtract(new_axii, new_axis)
-#        new_centers = np.subtract(new_centers, new_center)
-#        new_speeds = np.subtract(new_speeds, new_speed)
-        
+    def publish_rotation_msg(self, new_centers, new_axii, new_speeds):        
         rotation_msg = RotationParameters()
         rotation_msg.header.frame_id = self._base_tf_frame
         rotation_msg.header.stamp = rospy.Time.now()
@@ -278,22 +276,23 @@ class Tracker:
             recognized_obj = RecognizedObject()
             recognized_obj.id.id = obj.id
             recognized_obj.id.db = obj.db
+            recognized_obj.confidence = obj.confidence
             recognized_obj.header.frame_id = self.tf_frame_for_object(obj)
             recognized_obj.header.stamp = now
             recognized_obj.pose.header = recognized_obj.header
-            recognized_obj.pose.pose.pose.position.x = 0
-            recognized_obj.pose.pose.pose.position.y = 0
-            recognized_obj.pose.pose.pose.position.z = 0
-            recognized_obj.pose.pose.pose.orientation.x = 0
-            recognized_obj.pose.pose.pose.orientation.y = 0
-            recognized_obj.pose.pose.pose.orientation.z = 0
-            recognized_obj.pose.pose.pose.orientation.w = 1
+            recognized_obj.pose.pose.pose.position.x = 0.0
+            recognized_obj.pose.pose.pose.position.y = 0.0
+            recognized_obj.pose.pose.pose.position.z = 0.0
+            recognized_obj.pose.pose.pose.orientation.x = 0.0
+            recognized_obj.pose.pose.pose.orientation.y = 0.0
+            recognized_obj.pose.pose.pose.orientation.z = 0.0
+            recognized_obj.pose.pose.pose.orientation.w = 1.0
             
             recognized_objects.objects.append(recognized_obj)
         
         self._rotating_objects_publisher.publish(recognized_objects)          
     
-    def update_model(self):
+    def update_model(self, header):
         num_models = 0
         new_axii = []
         new_centers = []
@@ -301,8 +300,7 @@ class Tracker:
         
         tracked_objs_copy = set()
         with self._model_lock:
-            tracked_objs_copy = copy(self._tracked_objects)
-        
+            tracked_objs_copy = copy(self._tracked_objects)        
         
         for obj in tracked_objs_copy:
             if len(obj.poses) > self._min_poses_for_estimation:
@@ -341,24 +339,29 @@ class Tracker:
             
             with self._model_lock:
                 self._rotation_center = np.vstack((self._rotation_center, new_center))
-                if self._rotation_center.shape[0] > 10:
-                    self._rotation_center = self._rotation_center[-10:-1,:]
+                if self._rotation_center.shape[0] > self._max_poses_for_object:
+                    self._rotation_center = self._rotation_center[-self._max_poses_for_object:-1,:]
+                    
                 self._rotation_axis = np.vstack((self._rotation_axis, new_axis))
-                if self._rotation_axis.shape[0] > 10:
-                    self._rotation_axis = self._rotation_axis[-10:-1,:]
+                if self._rotation_axis.shape[0] > self._max_poses_for_object:
+                    self._rotation_axis = self._rotation_axis[-self._max_poses_for_object:-1,:]
+                    
                 self._rotation_speed = np.vstack((self._rotation_speed, new_speed))
-                if self._rotation_speed.shape[0] > 10:
-                    self._rotation_speed = self._rotation_speed[-10:-1]               
+                if self._rotation_speed.shape[0] > self._max_poses_for_object:
+                    self._rotation_speed = self._rotation_speed[-self._max_poses_for_object:-1]               
                     
                 self._reference_frame = rot_matr
+                
                 # now or at the time the detection was performed?
                 self.broadcast_tf(rospy.Time.now())
+#                self.broadcast_tf(header.stamp)
             
                 if self._rotation_publisher.get_num_connections() > 0:
                     self.publish_rotation_msg(new_centers, new_axii, new_speeds) 
                 
             rospy.logdebug("Updated model: center: %s axis: %s speed: %s" % (new_center, new_axis, new_speed))
             
+            # Update already tracked objs to reflect the new model
             rospy.logdebug("There are %s tracked objects." % len(tracked_objs_copy))
             for obj in tracked_objs_copy:
                 obj_pose = PoseStamped()
@@ -454,6 +457,7 @@ class Tracker:
                         obj_to_append = TrackedObject()
                         obj_to_append.id = object.id.id
                         obj_to_append.db = object.id.db
+                        obj_to_append.confidence = object.confidence
                         obj_to_append.poses = [ object.pose ]
                         obj_to_append.stamps = [ object.header.stamp ]
                         
@@ -520,9 +524,9 @@ class Tracker:
                     if polar_dist < min_dist:
                         min_dist = polar_dist
                         closest_obj = tracked_obj
-                    elif l2_dist < min_dist:
-                        min_dist = l2_dist
-                        closest_obj = tracked_obj
+                    #elif l2_dist < min_dist:
+                    #  min_dist = l2_dist
+                    #  closest_obj = tracked_obj
                         
             if closest_obj is not None:
                 # add the current pose
@@ -538,6 +542,7 @@ class Tracker:
                 tracked_object = TrackedObject()
                 tracked_object.id = obj.id.id
                 tracked_object.db = obj.id.db
+                tracked_object.confidence = obj.confidence
                 tracked_object.progressive_id = self._progressive_id
                 self._progressive_id += 1
                 tracked_object.phase = phase
@@ -554,7 +559,7 @@ class Tracker:
             self._tracked_objects = tracked_objs_copy
         
         # update motion model...  
-        self.update_model()
+        self.update_model(data.header)
         
         if self._marker_publisher.get_num_connections() > 0:
             self.publish_markers()
@@ -657,28 +662,49 @@ class Tracker:
                 self.broadcast_tf(event.current_real)
                 
     def transform_roi_limits(self):
-        min_point = PointStamped()
-        min_point.header.frame_id = self._base_tf_frame
-        min_point.header.stamp = rospy.Time(0)
+        # Has to be done for all the 8 cube points...
+        header = Header()
+        header.frame_id = self._base_tf_frame
+        header.stamp = rospy.Time(0)
         
-        max_point = PointStamped()
-        max_point.header.frame_id = self._base_tf_frame
-        max_point.header.stamp = rospy.Time(0)
-        
-        min_point.point.x = self._roi_limits[0]
-        min_point.point.y = self._roi_limits[2]
-        min_point.point.z = self._roi_limits[4]
-        
-        max_point.point.x = self._roi_limits[1]
-        max_point.point.y = self._roi_limits[3]
-        max_point.point.z = self._roi_limits[5]             
+        points = np.zeros(shape=(8,4))
+                    
         try:
-            min_point = self._tf_listener.transformPoint(self._ork_camera_frame, min_point)                       
-            max_point = self._tf_listener.transformPoint(self._ork_camera_frame, max_point)
-        
-            return [min_point.point.x, max_point.point.x, min_point.point.y, max_point.point.y, min_point.point.z, max_point.point.z]
+            transformation = self._tf_listener.asMatrix(self._ork_camera_frame, header)
+            
+            point = np.array([ self._roi_limits[0], self._roi_limits[2], self._roi_limits[4], 0.0 ])            
+            points[0,:] = np.dot(transformation, point)
+            
+            point = np.array([ self._roi_limits[0], self._roi_limits[3], self._roi_limits[4], 0.0 ])            
+            points[1,:] = np.dot(transformation, point)
+            
+            point = np.array([ self._roi_limits[0], self._roi_limits[2], self._roi_limits[5], 0.0 ])            
+            points[2,:] = np.dot(transformation, point)
+            
+            point = np.array([ self._roi_limits[0], self._roi_limits[3], self._roi_limits[5], 0.0 ])            
+            points[3,:] = np.dot(transformation, point)
+            
+            point = np.array([ self._roi_limits[1], self._roi_limits[2], self._roi_limits[4], 0.0 ])            
+            points[4,:] = np.dot(transformation, point)
+            
+            point = np.array([ self._roi_limits[1], self._roi_limits[3], self._roi_limits[4], 0.0 ])            
+            points[5,:] = np.dot(transformation, point)
+            
+            point = np.array([ self._roi_limits[1], self._roi_limits[2], self._roi_limits[5], 0.0 ])            
+            points[6,:] = np.dot(transformation, point)
+            
+            point = np.array([ self._roi_limits[1], self._roi_limits[3], self._roi_limits[5], 0.0 ])            
+            points[7,:] = np.dot(transformation, point)                                    
+            
+            return [ min(points[:,0]), 
+                     max(points[:,0]), 
+                     min(points[:,1]), 
+                     max(points[:,1]),
+                     min(points[:,2]), 
+                     max(points[:,2])]
+            
         except tf.Exception, e:
-            rospy.logerr(e)
+            rospy.logerr("Error while transforming ROI limits: %s" % e)
             return self._roi_limits
             
     def detection_timer_callback(self, event):
@@ -686,9 +712,12 @@ class Tracker:
             goal = ObjectRecognitionGoal()
             goal.use_roi = self._use_roi
             if self._use_roi:
-                if self._base_tf_frame != "" and self._ork_camera_frame != "" and self._base_tf_frame != self._ork_camera_frame:
+                if False: # look into the roi transofrmation
+#                if self._base_tf_frame != "" and self._ork_camera_frame != "" and self._base_tf_frame != self._ork_camera_frame:
                     # transform the limits into the camera frame (since it's the only frame ORK understands)
+                    rospy.logdebug("Limits before: %s" % self._roi_limits)
                     goal.filter_limits = self.transform_roi_limits()
+                    rospy.logdebug("Limits after: %s" % goal.filter_limits)
                 else:
                     goal.filter_limits = self._roi_limits
             
