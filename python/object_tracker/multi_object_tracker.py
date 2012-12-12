@@ -254,9 +254,9 @@ class Tracker:
         else:
             rotation_msg.axis_time_covariance = np.identity(3).flatten().tolist()       
         
-        rotation_msg.theta = self._rotation_speed[-1]
-        rotation_msg.theta_std_dev = np.std(self._rotation_speed)
-        rotation_msg.theta_time_std_dev = np.std(self._rotation_speed)
+        rotation_msg.speed = self._rotation_speed[-1]
+        rotation_msg.speed_std_dev = np.std(self._rotation_speed)
+        rotation_msg.speed_time_std_dev = np.std(self._rotation_speed)
         
         self._rotation_publisher.publish(rotation_msg)
       
@@ -312,7 +312,7 @@ class Tracker:
                     if response.success:
                         new_axii.append(np.array([response.axis.x, response.axis.y, response.axis.z]))
                         new_centers.append(np.array([response.center.x, response.center.y, response.center.z]))
-                        new_speeds.append(response.theta)
+                        new_speeds.append(response.speed)
                         num_models += 1
 #                        print "Response: ", response
                 except rospy.ServiceException, e:
@@ -403,7 +403,7 @@ class Tracker:
             with self._model_lock:
                 self._rotation_center = np.array([[response.center.x, response.center.y, response.center.z]])
                 self._rotation_axis = np.array([z_axis])
-                self._rotation_speed = np.array([response.theta])
+                self._rotation_speed = np.array([response.speed])
                 self._reference_frame = rot_matr
                 self._initialized = True 
                 self._model_valid = True   

@@ -57,7 +57,7 @@ class CircleFinder:
         self.center = None
         self.axis = None
         self.radius = None
-        self.theta = None
+        self.speed = None
         
     def calc_R(self, xc, yc, x, y):
         """ calculate the distance of each 3D point from the center (xc, yc) """
@@ -80,10 +80,10 @@ class CircleFinder:
         f = p.figure( facecolor='white')  #figsize=(7, 5.4), dpi=72,
         p.axis('equal')
     
-        theta_fit = linspace(-pi, pi, 180)
+        speed_fit = linspace(-pi, pi, 180)
     
-        x_fit2 = xc_2 + R_2*cos(theta_fit)
-        y_fit2 = yc_2 + R_2*sin(theta_fit)
+        x_fit2 = xc_2 + R_2*cos(speed_fit)
+        y_fit2 = yc_2 + R_2*sin(speed_fit)
         p.plot(x_fit2, y_fit2, 'k--', label="leastsq", lw=2)
     
         # draw
@@ -281,7 +281,7 @@ class CircleFinder:
         x_proj2d, y_proj2d, x_axis, y_axis = self.points3d_to_2d(proj_x, proj_y, proj_z, plane_coeffs)
         
         # 3rd: now find the circle.
-        c_x, c_y, self.radius, self.theta = self.find_circle(x_proj2d, y_proj2d, times_in, False)
+        c_x, c_y, self.radius, self.speed = self.find_circle(x_proj2d, y_proj2d, times_in, False)
         
         # c_x and c_y are relative to the origin on the plane, convert them back to world coords
         c_vector = origin + x_axis * c_x + y_axis * c_y
@@ -295,7 +295,7 @@ class CircleFinder:
         #c_vector points towards the rotation center
         if dot(c_vector, axis) > 0:
             axis = -axis
-            self.theta = -self.theta
+            self.speed = -self.speed
         
         self.axis = Vector3()
         self.axis.x = axis[0]
@@ -307,7 +307,7 @@ class CircleFinder:
         response.center = self.center
         response.axis = self.axis
         response.radius = self.radius
-        response.theta = self.theta        
+        response.speed = self.speed        
         
         return response
     

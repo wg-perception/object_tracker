@@ -8,6 +8,6 @@ geometry_msgs/Vector3 axis
 float64[9] axis_covariance
 float64[9] axis_time_covariance
 
-float64 theta
-float64 theta_std_dev
-float64 theta_time_std_dev
+float64 speed
+float64 speed_std_dev
+float64 speed_time_std_dev
