@@ -49,7 +49,7 @@ from geometry_msgs.msg import PoseWithCovarianceStamped, PoseStamped, Point, Vec
 from std_msgs.msg import Header 
 from visualization_msgs.msg import MarkerArray, Marker
 from object_tracker.srv import EstimateRotation, EstimateRotationResponse, EstimateRotationRequest
-from object_tracker.msg import RotationParameters
+from object_tracker.msg import RotationParameters, RotatingObjects
 from object_tracker.cfg import RotatingObjectTrackerConfig
 from copy import copy
 
@@ -61,7 +61,8 @@ class TrackedObject:
     stamps = [] 
     radius = 0.0
     phase = 0.0
-    confidence = 0.0   
+    confidence = 0.0
+    recognized_object = RecognizedObject   
 
 class Tracker:
     _initialized = False
@@ -221,44 +222,52 @@ class Tracker:
             
         self._marker_publisher.publish(marker_array)
         
-    def publish_rotation_msg(self, new_centers, new_axii, new_speeds):        
-        rotation_msg = RotationParameters()
-        rotation_msg.header.frame_id = self._base_tf_frame
-        rotation_msg.header.stamp = rospy.Time.now()
+    def publish_rotation_msg(self, new_centers, new_axii, new_speeds):  
+        rotating_objs = RotatingObjects()       
+        rotation_params = RotationParameters()
+        rotation_params.header.frame_id = self._base_tf_frame
+        rotation_params.header.stamp = rospy.Time.now()
         
-        rotation_msg.center.x = self._rotation_center[-1, 0]
-        rotation_msg.center.y = self._rotation_center[-1, 1]
-        rotation_msg.center.z = self._rotation_center[-1, 2]
+        rotation_params.center.x = self._rotation_center[-1, 0]
+        rotation_params.center.y = self._rotation_center[-1, 1]
+        rotation_params.center.z = self._rotation_center[-1, 2]
         
         if len(new_centers) > 1:
-            rotation_msg.center_covariance = np.cov(new_centers, rowvar=0).flatten().tolist()
+            rotation_params.center_covariance = np.cov(new_centers, rowvar=0).flatten().tolist()
         else:
-            rotation_msg.center_covariance = np.identity(3).flatten().tolist()
+            rotation_params.center_covariance = np.identity(3).flatten().tolist()
             
         if self._rotation_center.shape[0] > 1:
-            rotation_msg.center_time_covariance = np.cov(self._rotation_center, rowvar=0).flatten().tolist()
+            rotation_params.center_time_covariance = np.cov(self._rotation_center, rowvar=0).flatten().tolist()
         else:
-            rotation_msg.center_time_covariance = np.identity(3).flatten().tolist()            
+            rotation_params.center_time_covariance = np.identity(3).flatten().tolist()            
         
-        rotation_msg.axis.x = self._rotation_axis[-1, 0]
-        rotation_msg.axis.y = self._rotation_axis[-1, 1]
-        rotation_msg.axis.z = self._rotation_axis[-1, 2]
+        rotation_params.axis.x = self._rotation_axis[-1, 0]
+        rotation_params.axis.y = self._rotation_axis[-1, 1]
+        rotation_params.axis.z = self._rotation_axis[-1, 2]
         
         if len(new_axii) > 1:
-            rotation_msg.axis_covariance = np.cov(new_axii, rowvar=0).flatten().tolist()
+            rotation_params.axis_covariance = np.cov(new_axii, rowvar=0).flatten().tolist()
         else:
-            rotation_msg.axis_covariance = np.identity(3).flatten().tolist()
+            rotation_params.axis_covariance = np.identity(3).flatten().tolist()
             
         if self._rotation_axis.shape[0] > 1:
-            rotation_msg.axis_time_covariance = np.cov(self._rotation_axis, rowvar=0).flatten().tolist()
+            rotation_params.axis_time_covariance = np.cov(self._rotation_axis, rowvar=0).flatten().tolist()
         else:
-            rotation_msg.axis_time_covariance = np.identity(3).flatten().tolist()       
+            rotation_params.axis_time_covariance = np.identity(3).flatten().tolist()       
         
-        rotation_msg.speed = self._rotation_speed[-1]
-        rotation_msg.speed_std_dev = np.std(self._rotation_speed)
-        rotation_msg.speed_time_std_dev = np.std(self._rotation_speed)
+        rotation_params.speed = self._rotation_speed[-1]
+        rotation_params.speed_std_dev = np.std(self._rotation_speed)
+        rotation_params.speed_time_std_dev = np.std(self._rotation_speed)
         
-        self._rotation_publisher.publish(rotation_msg)
+        rotating_objs.rotation_parameters = rotation_params
+        
+        for obj in self._tracked_objects:
+            rotating_objs.objects.append(obj.recognized_object)
+            rotating_objs.radius.append(obj.radius)
+            rotating_objs.phase.append(obj.phase)
+        
+        self._rotation_publisher.publish(rotating_objs)
       
     def publish_rotating_objects(self):
         recognized_objects = RecognizedObjectArray()
@@ -483,6 +492,7 @@ class Tracker:
                         obj_to_append.confidence = object.confidence
                         obj_to_append.poses = [ object.pose ]
                         obj_to_append.stamps = [ object.header.stamp ]
+                        obj_to_append.recognized_object = object
                         
                         tracked_objs_copy.add(obj_to_append)
                         # nothing else can be done for this obj...
@@ -572,13 +582,14 @@ class Tracker:
                 tracked_object.radius = radius
                 tracked_object.poses = [obj.pose]
                 tracked_object.stamps = [obj.header.stamp]
+                tracked_object.recognized_object = obj
                 
 #                 if there is already an object in that position don't add the new one 
                 if (self.find_closest_object_from_list_polar(tracked_object, tracked_objs_copy, self._same_object_threshold) is None and
                         self.find_closest_object_from_list_polar(tracked_object, new_tracked_objects, self._same_object_threshold) is None):                    
                     new_tracked_objects.add(tracked_object)
                 else:
-                    rospy.loginfo("Skipping object insertion for object %s" % tracked_object.id)                    
+                    rospy.logdebug("Skipping object insertion for object %s" % tracked_object.id)                    
                      
         # add back the new list to the old list
         tracked_objs_copy |= new_tracked_objects
@@ -813,8 +824,8 @@ class Tracker:
         self._estimate_rotation_service = rospy.ServiceProxy("estimate_rotation", EstimateRotation, True)
         
         # Publishers
-        self._marker_publisher = rospy.Publisher("rotating_objects", MarkerArray)
-        self._rotation_publisher = rospy.Publisher("rotation_parameters", RotationParameters)
+        self._marker_publisher = rospy.Publisher("rotating_objects_markers", MarkerArray)
+        self._rotation_publisher = rospy.Publisher("rotating_objects", RotatingObjects)
         self._rotating_objects_publisher = rospy.Publisher("recognized_rotating_objects", RecognizedObjectArray)
         
         # Object recognition server
