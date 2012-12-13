@@ -400,12 +400,11 @@ class Tracker:
         rospy.logdebug("Initialization: received a response: %s" % response)
         if response.success:
             z_axis = np.array([response.axis.x, response.axis.y, response.axis.z])
-            # fix up direction
+            rotation_center = np.array([response.center.x, response.center.y, response.center.z])
+
             if np.dot(z_axis, [0.0, 0.0, 1.0]) < 0:
                 z_axis = -z_axis
-                speed = -response.speed
-            else:
-                speed = response.speed
+                response.speed = -response.speed
             if z_axis is not [0.0,1.0,0.0] and z_axis is not [0.0, -1.0, 0.0]:
                 x_axis = np.cross(z_axis, [0.0,1.0,0.0])
             else:
@@ -416,17 +415,19 @@ class Tracker:
                                   [x_axis[1], y_axis[1], z_axis[1], 0.0],
                                   [x_axis[2], y_axis[2], z_axis[2], 0.0],
                                   [0.0,0.0,0.0,1.0]])
-            rotation_center = np.array([response.center.x, response.center.y, response.center.z])
+            
             
             # initialize the object
             object.radius = response.radius
-            # phase is 0 since we are initializing the rotation model
-            object.phase = 0.0
+            obj_pose = self.pose_to_array(object.poses[-1]) - rotation_center
+            obj_x = np.dot(x_axis, obj_pose)
+            obj_y = np.dot(y_axis, obj_pose)
+            object.phase = math.atan2(obj_y, obj_x)
 
             with self._model_lock:
                 self._rotation_center = np.array([rotation_center])
                 self._rotation_axis = np.array([z_axis])
-                self._rotation_speed = np.array([speed])
+                self._rotation_speed = np.array([response.speed])
                 self._reference_frame = rot_matr
                 self._initialized = True 
                 self._model_valid = True
@@ -584,7 +585,6 @@ class Tracker:
                 tracked_object.db = obj.id.db
                 tracked_object.confidence = obj.confidence
                 tracked_object.progressive_id = self._progressive_id
-                self._progressive_id += 1
                 tracked_object.phase = phase
                 tracked_object.radius = radius
                 tracked_object.poses = [obj.pose]
@@ -595,6 +595,7 @@ class Tracker:
                 if (self.find_closest_object_from_list_polar(tracked_object, tracked_objs_copy, self._same_object_threshold) is None and
                         self.find_closest_object_from_list_polar(tracked_object, new_tracked_objects, self._same_object_threshold) is None):                    
                     new_tracked_objects.add(tracked_object)
+                    self._progressive_id += 1
                 else:
                     rospy.logdebug("Skipping object insertion for object %s" % tracked_object.id)                    
                      
