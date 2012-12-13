@@ -326,6 +326,10 @@ class Tracker:
             new_center = np.mean(new_centers, axis=0)
             new_speed = np.mean(new_speeds)                           
             
+            # fix up vector (and speed)
+            if np.dot(new_axis, [0.0, 0.0, 1.0]) < 0:
+                new_axis = -new_axis
+                new_speed = -new_speed
             if new_axis is not [0.0,1.0,0.0] and new_axis is not [0, -1, 0]:
                 x_axis = np.cross(new_axis, [0.0,1.0,0.0])
             else:
@@ -390,6 +394,10 @@ class Tracker:
             # TODO phase
             
             z_axis = np.array([response.axis.x, response.axis.y, response.axis.z])
+            # fix up direction
+            if np.dot(z_axis, [0.0, 0.0, 1.0]) < 0:
+                z_axis = -z_axis
+                response.speed = -response.speed
             if z_axis is not [0.0,1.0,0.0] and z_axis is not [0.0, -1.0, 0.0]:
                 x_axis = np.cross(z_axis, [0.0,1.0,0.0])
             else:
