@@ -96,13 +96,13 @@ class Tracker:
     _rotation_center = np.array
     _rotation_axis = np.array
     _rotation_speed = np.array
-    _previous_angle = 0
+    _previous_angle = 0.0
     _last_tf_broadcast = 0.0   
     
     _tracked_objects = set()
     
-    _static_object_threshold = 0
-    _static_object_window = 0
+    _static_object_threshold = 0.0
+    _static_object_window = 0.0
     _min_poses_for_estimation = 0
     _min_poses_to_consider_an_object = 0
     _max_poses_for_object = 0
@@ -121,7 +121,7 @@ class Tracker:
         self._rotation_center = np.zeros(3)
         self._rotation_axis = np.zeros(3)
         self._rotation_speed = np.zeros(1)
-        self._previous_angle = 0
+        self._previous_angle = 0.0
         self._last_tf_broadcast = 0.0   
         self._reference_frame = np.identity(4)
         self._tracked_objects = set()
@@ -135,8 +135,8 @@ class Tracker:
         self._same_object_threshold = 0.1
         self._use_roi = False
         self._roi_limits = []
-        self._detection_rate = 2
-        self._tf_rate = 20
+        self._detection_rate = 2.0
+        self._tf_rate = 20.0
         self._ork_camera_frame = ""
         
 #    def init_all_objects(self):
@@ -175,7 +175,7 @@ class Tracker:
             
             obj_x = obj.radius * math.cos(obj.phase)
             obj_y = obj.radius * math.sin(obj.phase)
-            self._tf_publisher.sendTransform([obj_x, obj_y, 0.0], [0, 0, 0, 1], time, self.tf_frame_for_object(obj), self._rotating_tf_frame)
+            self._tf_publisher.sendTransform([obj_x, obj_y, 0.0], [0.0, 0.0, 0.0, 1.0], time, self.tf_frame_for_object(obj), self._rotating_tf_frame)
         
         self._last_tf_broadcast = time.to_sec()
     
@@ -196,7 +196,7 @@ class Tracker:
             marker.header.stamp = now
             marker.header.frame_id = self.tf_frame_for_object(obj)
             marker.id = id
-            marker.lifetime = rospy.Duration(10)
+            marker.lifetime = rospy.Duration(10.0)
             id += 1
             marker.ns = "rotating_objects"
             marker.action = Marker.ADD
@@ -204,16 +204,16 @@ class Tracker:
             marker.pose.position.x = 0.0 #obj.radius * math.cos(obj.phase)
             marker.pose.position.y = 0.0 #obj.radius * math.sin(obj.phase)
             marker.pose.position.z = 0.0
-            marker.pose.orientation.x = 0
-            marker.pose.orientation.y = 0
-            marker.pose.orientation.z = 0
-            marker.pose.orientation.w = 1
+            marker.pose.orientation.x = 0.0
+            marker.pose.orientation.y = 0.0
+            marker.pose.orientation.z = 0.0
+            marker.pose.orientation.w = 1.0
             marker.scale.x = 0.05
             marker.scale.y = 0.05
             marker.scale.z = 0.05
             marker.color.r = 1.0
-            marker.color.g = 0
-            marker.color.b = 0
+            marker.color.g = 0.0
+            marker.color.b = 0.0
             marker.color.a = 1.0
             marker.frame_locked = True
             
@@ -326,16 +326,16 @@ class Tracker:
             new_center = np.mean(new_centers, axis=0)
             new_speed = np.mean(new_speeds)                           
             
-            if new_axis is not [0,1,0] and new_axis is not [0, -1, 0]:
-                x_axis = np.cross(new_axis, [0,1,0])
+            if new_axis is not [0.0,1.0,0.0] and new_axis is not [0, -1, 0]:
+                x_axis = np.cross(new_axis, [0.0,1.0,0.0])
             else:
-                x_axis = np.cross(new_axis, [1,0,0])
+                x_axis = np.cross(new_axis, [1.0,0.0,0.0])
                 
             y_axis = np.cross(new_axis, x_axis)
-            rot_matr =  np.array([[x_axis[0], y_axis[0], new_axis[0], 0], 
-                                  [x_axis[1], y_axis[1], new_axis[1], 0],
-                                  [x_axis[2], y_axis[2], new_axis[2], 0],
-                                  [0,0,0,1]])
+            rot_matr =  np.array([[x_axis[0], y_axis[0], new_axis[0], 0.0], 
+                                  [x_axis[1], y_axis[1], new_axis[1], 0.0],
+                                  [x_axis[2], y_axis[2], new_axis[2], 0.0],
+                                  [0.0,0.0,0.0,1.0]])
             
             with self._model_lock:
                 self._rotation_center = np.vstack((self._rotation_center, new_center))
@@ -390,16 +390,16 @@ class Tracker:
             # TODO phase
             
             z_axis = np.array([response.axis.x, response.axis.y, response.axis.z])
-            if z_axis is not [0,1,0] and z_axis is not [0, -1, 0]:
-                x_axis = np.cross(z_axis, [0,1,0])
+            if z_axis is not [0.0,1.0,0.0] and z_axis is not [0.0, -1.0, 0.0]:
+                x_axis = np.cross(z_axis, [0.0,1.0,0.0])
             else:
-                x_axis = np.cross(z_axis, [1,0,0])
+                x_axis = np.cross(z_axis, [1.0,0.0,0.0])
                 
             y_axis = np.cross(z_axis, x_axis)
-            rot_matr =  np.array([[x_axis[0], y_axis[0], z_axis[0], 0], 
-                                  [x_axis[1], y_axis[1], z_axis[1], 0],
-                                  [x_axis[2], y_axis[2], z_axis[2], 0],
-                                  [0,0,0,1]])
+            rot_matr =  np.array([[x_axis[0], y_axis[0], z_axis[0], 0.0], 
+                                  [x_axis[1], y_axis[1], z_axis[1], 0.0],
+                                  [x_axis[2], y_axis[2], z_axis[2], 0.0],
+                                  [0.0,0.0,0.0,1.0]])
             with self._model_lock:
                 self._rotation_center = np.array([[response.center.x, response.center.y, response.center.z]])
                 self._rotation_axis = np.array([z_axis])
@@ -425,7 +425,22 @@ class Tracker:
                 closest_obj = obj
                 min_dist = distance
         
-        return closest_obj                        
+        return closest_obj       
+    
+    def find_closest_object_from_list_polar(self, object, object_list, max_dist = sys.float_info.max):
+        if not object_list:
+            return None
+        
+        closest_obj = None
+        min_dist = max_dist
+        
+        for obj in object_list:
+            distance = self.polar_dist(object.radius, object.phase, obj.radius, obj.phase)
+            if distance < min_dist:
+                closest_obj = obj
+                min_dist = distance
+        
+        return closest_obj  
                 
     def initialization_phase_behavior(self, data):
         # check if in the current recognition there are multiple instances of a single obj id
@@ -548,9 +563,14 @@ class Tracker:
                 tracked_object.phase = phase
                 tracked_object.radius = radius
                 tracked_object.poses = [obj.pose]
-                tracked_object.stamps = [obj.header.stamp]                    
-                new_tracked_objects.add(tracked_object)                    
-            
+                tracked_object.stamps = [obj.header.stamp]
+                
+#                 if there is already an object in that position don't add the new one 
+                if (self.find_closest_object_from_list_polar(tracked_object, tracked_objs_copy, self._same_object_threshold) is None and
+                        self.find_closest_object_from_list_polar(tracked_object, new_tracked_objects, self._same_object_threshold) is None):                    
+                    new_tracked_objects.add(tracked_object)
+                else:
+                    rospy.loginfo("Skipping object insertion for object %s" % tracked_object.id)                    
                      
         # add back the new list to the old list
         tracked_objs_copy |= new_tracked_objects
