@@ -399,14 +399,13 @@ class Tracker:
         
         rospy.logdebug("Initialization: received a response: %s" % response)
         if response.success:
-            object.radius = response.radius                
-            # TODO phase
-            
             z_axis = np.array([response.axis.x, response.axis.y, response.axis.z])
             # fix up direction
             if np.dot(z_axis, [0.0, 0.0, 1.0]) < 0:
                 z_axis = -z_axis
-                response.speed = -response.speed
+                speed = -response.speed
+            else:
+                speed = response.speed
             if z_axis is not [0.0,1.0,0.0] and z_axis is not [0.0, -1.0, 0.0]:
                 x_axis = np.cross(z_axis, [0.0,1.0,0.0])
             else:
@@ -417,13 +416,21 @@ class Tracker:
                                   [x_axis[1], y_axis[1], z_axis[1], 0.0],
                                   [x_axis[2], y_axis[2], z_axis[2], 0.0],
                                   [0.0,0.0,0.0,1.0]])
+            rotation_center = np.array([response.center.x, response.center.y, response.center.z])
+            
+            # initialize the object
+            object.radius = response.radius
+            # phase is 0 since we are initializing the rotation model
+            object.phase = 0.0
+
             with self._model_lock:
-                self._rotation_center = np.array([[response.center.x, response.center.y, response.center.z]])
+                self._rotation_center = np.array([rotation_center])
                 self._rotation_axis = np.array([z_axis])
-                self._rotation_speed = np.array([response.speed])
+                self._rotation_speed = np.array([speed])
                 self._reference_frame = rot_matr
                 self._initialized = True 
-                self._model_valid = True   
+                self._model_valid = True
+                self._last_tf_broadcast = object.poses[-1].header.stamp.to_sec()   
             
             rospy.loginfo("Initialization successful.")
             
