@@ -70,7 +70,6 @@ class Tracker:
     _progressive_id = 0
     
     _ork_camera_frame = ""
-    _recognized_objects_topic = "/recognized_object_array"
     _base_tf_frame = ""
     _intermediate_tf_frame = "/rotation_center"
     _rotating_tf_frame = "/rotating_objects"

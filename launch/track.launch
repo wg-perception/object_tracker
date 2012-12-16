@@ -1,7 +1,10 @@
 <launch>
-    <node pkg="object_tracker" name="$(anon object_tracker)" type="object_tracker_node">
+    <node pkg="object_tracker" name="objects_tracker" type="multi_object_tracker.py">
       <remap from="recognized_object_array" to="/recognized_object_array" />
-      <remap from="cloud_in" to="/camera/depth_registered/points" />
-      <param name="frame_id" type="string" value="/camera_rgb_optical_frame" />
+      <remap from="rotating_objects_markers" to="/rotating_objects_markers" />
+      <remap from="rotating_objects" to="/rotating_objects" />
+      <remap from="recognized_rotating_objects" to="/recognized_rotating_objects" />
+    </node>
+    <node pkg="object_tracker" name="object_tracker_rotation_estimator" type="estimate_rotation_server.py">
     </node>
 </launch>

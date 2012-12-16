@@ -1,38 +1,40 @@
 <stack>
-  <name>object_recognition_by_parts</name>
+  <name>object_tracker</name>
   <version>0.0.1</version>
-  <description>A technique to recognize and estimate objects using mixtures of deformable parts models</description>
-  <author email="hbristow@willowgarage.com">Hilton Bristow</author>
+  <description>An object tracking package</description>
+  <author email="tcavallari@willowgarage.com">Tommaso Cavallari</author>
   <license>BSD</license>
   <copyright>Willow Garage</copyright>
-  <url>http://ecto.willowgarage.com</url>
+  <url></url>
 
   <build_depends>catkin</build_depends>
-  <build_depends>cv_bridge</build_depends>
-  <build_depends>cvmatio</build_depends>
-  <build_depends>ecto</build_depends>
-  <build_depends>image_geometry</build_depends>
-  <build_depends>image_transport</build_depends>
-  <build_depends>message_filters</build_depends>
   <build_depends>object_recognition_core</build_depends>
-  <build_depends>openni-dev</build_depends>
-  <build_depends>opencv2</build_depends>
+  <build_depends>object_recognition_msgs</build_depends>
   <build_depends>roscpp</build_depends>
-  <build_depends>vision_opencv</build_depends>
-  <build_depends>pcl</build_depends>  
-  <build_depends>pcl_ros</build_depends>  
+  <build_depends>rospy</build_depends>
+  <build_depends>genmsg</build_depends>
+  <build_depends>std_msgs</build_depends>
+  <build_depends>geometry_msgs</build_depends>
+  <build_depends>sensor_msgs</build_depends>
+  <build_depends>visualization_msgs</build_depends>
+  <build_depends>tf</build_depends>
   <build_depends>dynamic_reconfigure</build_depends>
+  <build_depends>pcl</build_depends>
+  <build_depends>pcl_ros</build_depends>
 
-  <depends>ecto</depends>
-  <depends>cv_bridge</depends>
-  <depends>cvmatio</depends>
-  <depends>image_geometry</depends>
-  <depends>image_transport</depends>
-  <depends>opencv2</depends>
+
+  <depends>catkin</depends>
   <depends>object_recognition_core</depends>
-  <depends>openni-dev</depends>
-  <depends>message_filters</depends>
-  <depends>pcl</depends>  
+  <depends>object_recognition_msgs</depends>
+  <depends>roscpp</depends>
+  <depends>rospy</depends>
+  <depends>genmsg</depends>
+  <depends>std_msgs</depends>
+  <depends>geometry_msgs</depends>
+  <depends>sensor_msgs</depends>
+  <depends>visualization_msgs</depends>
+  <depends>tf</depends>
+  <depends>dynamic_reconfigure</depends>
+  <depends>pcl</depends>
   <depends>pcl_ros</depends>
-  <depends>dynamic_reconfigure</depends>    
 </stack>

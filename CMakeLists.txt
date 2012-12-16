@@ -6,7 +6,7 @@ cmake_minimum_required(VERSION 2.8.5)
 project(object_tracker)
 find_package(catkin REQUIRED COMPONENTS rospy genmsg object_recognition_core object_recognition_msgs pcl pcl_ros std_msgs geometry_msgs visualization_msgs tf dynamic_reconfigure)
 
-# install targets for all things python
+# install targets for python
 catkin_python_setup()
 
 # Services
@@ -33,21 +33,17 @@ endif()
 # -----------------------------------------------
 # find the dependencies
 find_package(Boost COMPONENTS system filesystem signals thread REQUIRED)
-find_package(OpenCV REQUIRED)
-#find_package(PCL REQUIRED)
 find_package(Eigen REQUIRED)
 
-
-include_directories(${EIGEN_INCLUDE_DIRS})
 add_definitions(-DEIGEN_USE_NEW_STDVECTOR
                 -DEIGEN_YES_I_KNOW_SPARSE_MODULE_IS_NOT_STABLE_YET)
 
 # include the dependencies
-include_directories(SYSTEM  ${OPENCV_INCLUDE_DIRS}
-                            ${Boost_INCLUDE_DIRS}
+include_directories(SYSTEM  ${Boost_INCLUDE_DIRS}
 )
-#include_directories(include
-#					${catkin_INCLUDE_DIRS})
+include_directories(include
+					${catkin_INCLUDE_DIRS}
+					${EIGEN_INCLUDE_DIRS})
 
 
 # -----------------------------------------------
