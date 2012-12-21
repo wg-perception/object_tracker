@@ -51,7 +51,7 @@ from visualization_msgs.msg import MarkerArray, Marker
 from object_tracker.srv import EstimateRotation, EstimateRotationResponse, EstimateRotationRequest
 from object_tracker.msg import RotationParameters, RotatingObjects
 from object_tracker.cfg import RotatingObjectTrackerConfig
-from copy import copy
+from copy import copy, deepcopy
 
 class TrackedObject:
     id = 0
@@ -139,25 +139,6 @@ class Tracker:
         self._tf_rate = 20.0
         self._ork_camera_frame = ""
         
-#    def init_all_objects(self):
-#        for obj in self._tracked_objects:
-#            avg_radius = 0.0
-#            for pose in obj.poses:
-#                point = np.array([pose.pose.pose.position.x, pose.pose.pose.position.y, pose.pose.pose.position.z])
-#                avg_radius += linalg.norm(point - self._rotation_center)
-#            avg_radius /= len(obj.poses)
-#            obj.radius = avg_radius 
-#
-#            last_pose = np.array([obj.poses[-1].pose.pose.position.x, obj.poses[-1].pose.pose.position.y, obj.poses[-1].pose.pose.position.z])
-#            last_pose -= self._rotation_center
-#            last_pose = np.matrix(self._reference_frame[:3,:3]).I.dot(last_pose)
-#     
-##            print "lp", last_pose
-##            print "radius", obj.radius
-##            print "phase", math.atan2(last_pose[0,1], last_pose[0,0])
-#                            
-#        pass
-
     def tf_frame_for_object(self, obj):
         return "%s_%s_%s" % (self._rotating_tf_frame, obj.id, obj.progressive_id)
     
@@ -201,13 +182,7 @@ class Tracker:
             marker.ns = "rotating_objects"
             marker.action = Marker.ADD
             marker.type = Marker.SPHERE
-            marker.pose.position.x = 0.0 #obj.radius * math.cos(obj.phase)
-            marker.pose.position.y = 0.0 #obj.radius * math.sin(obj.phase)
-            marker.pose.position.z = 0.0
-            marker.pose.orientation.x = 0.0
-            marker.pose.orientation.y = 0.0
-            marker.pose.orientation.z = 0.0
-            marker.pose.orientation.w = 1.0
+            marker.pose = obj.recognized_object.pose.pose.pose
             marker.scale.x = 0.05
             marker.scale.y = 0.05
             marker.scale.z = 0.05
@@ -280,23 +255,10 @@ class Tracker:
         for obj in tracked_objs_copy:
             if len(obj.poses) < self._min_poses_to_consider_an_object:
                 continue
-                        
-            recognized_obj = RecognizedObject()
-            recognized_obj.id.id = obj.id
-            recognized_obj.id.db = obj.db
-            recognized_obj.confidence = obj.confidence
-            recognized_obj.header.frame_id = self.tf_frame_for_object(obj)
-            recognized_obj.header.stamp = now
-            recognized_obj.pose.header = recognized_obj.header
-            recognized_obj.pose.pose.pose.position.x = 0.0
-            recognized_obj.pose.pose.pose.position.y = 0.0
-            recognized_obj.pose.pose.pose.position.z = 0.0
-            recognized_obj.pose.pose.pose.orientation.x = 0.0
-            recognized_obj.pose.pose.pose.orientation.y = 0.0
-            recognized_obj.pose.pose.pose.orientation.z = 0.0
-            recognized_obj.pose.pose.pose.orientation.w = 1.0
+            # update the timestamp of the object
+            obj.recognized_obj.header.stamp = now
             
-            recognized_objects.objects.append(recognized_obj)
+            recognized_objects.objects.append(obj.recognized_obj)
         
         self._rotating_objects_publisher.publish(recognized_objects)          
     
@@ -499,7 +461,7 @@ class Tracker:
                         obj_to_append.confidence = object.confidence
                         obj_to_append.poses = [ object.pose ]
                         obj_to_append.stamps = [ object.header.stamp ]
-                        obj_to_append.recognized_object = object
+                        obj_to_append.recognized_object = deepcopy(object)
                         
                         tracked_objs_copy.add(obj_to_append)
                         # nothing else can be done for this obj...
@@ -517,6 +479,19 @@ class Tracker:
                             if self.init_model_from_object(closest_potential_obj):
                                 # setup ids
                                 closest_potential_obj.progressive_id = self._progressive_id
+                                
+                                #change the coordinates of the object according to the new reference frame
+                                closest_potential_obj.recognized_object.header.frame_id = self.tf_frame_for_object(closest_potential_obj)
+                                #closest_potential_obj.recognized_object.header.stamp = now
+                                closest_potential_obj.recognized_object.pose.header = closest_potential_obj.recognized_object.header
+                                closest_potential_obj.recognized_object.pose.pose.pose.position.x = 0.0
+                                closest_potential_obj.recognized_object.pose.pose.pose.position.y = 0.0
+                                closest_potential_obj.recognized_object.pose.pose.pose.position.z = 0.0
+                                closest_potential_obj.recognized_object.pose.pose.pose.orientation.x = 0.0
+                                closest_potential_obj.recognized_object.pose.pose.pose.orientation.y = 0.0
+                                closest_potential_obj.recognized_object.pose.pose.pose.orientation.z = 0.0
+                                closest_potential_obj.recognized_object.pose.pose.pose.orientation.w = 1.0
+                                
                                 self._progressive_id += 1
                                 tracked_objs_copy.clear() 
                                 tracked_objs_copy.add(closest_potential_obj)                                   
@@ -588,7 +563,19 @@ class Tracker:
                 tracked_object.radius = radius
                 tracked_object.poses = [obj.pose]
                 tracked_object.stamps = [obj.header.stamp]
-                tracked_object.recognized_object = obj
+                tracked_object.recognized_object = deepcopy(obj)
+                
+                # change coordinates according to the rotation frame
+                tracked_object.recognized_object.header.frame_id = self.tf_frame_for_object(tracked_object)
+                #tracked_object.recognized_object.header.stamp = now
+                tracked_object.recognized_object.pose.header = tracked_object.recognized_object.header
+                tracked_object.recognized_object.pose.pose.pose.position.x = 0.0
+                tracked_object.recognized_object.pose.pose.pose.position.y = 0.0
+                tracked_object.recognized_object.pose.pose.pose.position.z = 0.0
+                tracked_object.recognized_object.pose.pose.pose.orientation.x = 0.0
+                tracked_object.recognized_object.pose.pose.pose.orientation.y = 0.0
+                tracked_object.recognized_object.pose.pose.pose.orientation.z = 0.0
+                tracked_object.recognized_object.pose.pose.pose.orientation.w = 1.0
                 
 #                 if there is already an object in that position don't add the new one 
                 if (self.find_closest_object_from_list_polar(tracked_object, tracked_objs_copy, self._same_object_threshold) is None and
@@ -758,8 +745,8 @@ class Tracker:
             goal = ObjectRecognitionGoal()
             goal.use_roi = self._use_roi
             if self._use_roi:
-                if False: # look into the roi transofrmation
-#                if self._base_tf_frame != "" and self._ork_camera_frame != "" and self._base_tf_frame != self._ork_camera_frame:
+#                if False: # look into the roi transofrmation
+                if self._base_tf_frame != "" and self._ork_camera_frame != "" and self._base_tf_frame != self._ork_camera_frame:
                     # transform the limits into the camera frame (since it's the only frame ORK understands)
                     rospy.logdebug("Limits before: %s" % self._roi_limits)
                     goal.filter_limits = self.transform_roi_limits()
