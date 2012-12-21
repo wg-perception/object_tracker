@@ -696,6 +696,7 @@ class Tracker:
                 
     def transform_roi_limits(self):
         # Has to be done for all the 8 cube points...
+        # The resulting cube is guaranteed to contain the original cube
         header = Header()
         header.frame_id = self._base_tf_frame
         header.stamp = rospy.Time(0)
@@ -705,29 +706,29 @@ class Tracker:
         try:
             transformation = self._tf_listener.asMatrix(self._ork_camera_frame, header)
             
-            point = np.array([ self._roi_limits[0], self._roi_limits[2], self._roi_limits[4], 0.0 ])            
+            point = np.array([ self._roi_limits[0], self._roi_limits[2], self._roi_limits[4], 1.0 ])      
             points[0,:] = np.dot(transformation, point)
             
-            point = np.array([ self._roi_limits[0], self._roi_limits[3], self._roi_limits[4], 0.0 ])            
+            point = np.array([ self._roi_limits[0], self._roi_limits[3], self._roi_limits[4], 1.0 ])           
             points[1,:] = np.dot(transformation, point)
             
-            point = np.array([ self._roi_limits[0], self._roi_limits[2], self._roi_limits[5], 0.0 ])            
+            point = np.array([ self._roi_limits[0], self._roi_limits[2], self._roi_limits[5], 1.0 ])           
             points[2,:] = np.dot(transformation, point)
             
-            point = np.array([ self._roi_limits[0], self._roi_limits[3], self._roi_limits[5], 0.0 ])            
+            point = np.array([ self._roi_limits[0], self._roi_limits[3], self._roi_limits[5], 1.0 ])           
             points[3,:] = np.dot(transformation, point)
             
-            point = np.array([ self._roi_limits[1], self._roi_limits[2], self._roi_limits[4], 0.0 ])            
+            point = np.array([ self._roi_limits[1], self._roi_limits[2], self._roi_limits[4], 1.0 ])           
             points[4,:] = np.dot(transformation, point)
             
-            point = np.array([ self._roi_limits[1], self._roi_limits[3], self._roi_limits[4], 0.0 ])            
+            point = np.array([ self._roi_limits[1], self._roi_limits[3], self._roi_limits[4], 1.0 ])           
             points[5,:] = np.dot(transformation, point)
             
-            point = np.array([ self._roi_limits[1], self._roi_limits[2], self._roi_limits[5], 0.0 ])            
+            point = np.array([ self._roi_limits[1], self._roi_limits[2], self._roi_limits[5], 1.0 ])           
             points[6,:] = np.dot(transformation, point)
             
-            point = np.array([ self._roi_limits[1], self._roi_limits[3], self._roi_limits[5], 0.0 ])            
-            points[7,:] = np.dot(transformation, point)                                    
+            point = np.array([ self._roi_limits[1], self._roi_limits[3], self._roi_limits[5], 1.0 ])           
+            points[7,:] = np.dot(transformation, point)                                             
             
             return [ min(points[:,0]), 
                      max(points[:,0]), 
