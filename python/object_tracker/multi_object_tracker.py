@@ -297,19 +297,19 @@ class Tracker:
             new_speed = np.mean(new_speeds)                           
             
             # fix up vector (and speed)
-            if np.dot(new_axis, [0.0, 0.0, 1.0]) < 0:
+            if np.dot(new_axis, [ 0.0, 0.0, 1.0 ]) < 0:
                 new_axis = -new_axis
                 new_speed = -new_speed
-            if new_axis is not [0.0,1.0,0.0] and new_axis is not [0, -1, 0]:
-                x_axis = np.cross(new_axis, [0.0,1.0,0.0])
+            if new_axis is not [ 0.0, 1.0, 0.0 ] and new_axis is not [ 0, -1, 0 ]:
+                x_axis = np.cross(new_axis, [ 0.0, 1.0, 0.0 ])
             else:
-                x_axis = np.cross(new_axis, [1.0,0.0,0.0])
+                x_axis = np.cross(new_axis, [ 1.0, 0.0, 0.0 ])
                 
             y_axis = np.cross(new_axis, x_axis)
-            rot_matr =  np.array([[x_axis[0], y_axis[0], new_axis[0], 0.0], 
-                                  [x_axis[1], y_axis[1], new_axis[1], 0.0],
-                                  [x_axis[2], y_axis[2], new_axis[2], 0.0],
-                                  [0.0,0.0,0.0,1.0]])
+            rot_matr =  np.array([ [ x_axis[0], y_axis[0], new_axis[0], 0.0 ], 
+                                   [ x_axis[1], y_axis[1], new_axis[1], 0.0 ],
+                                   [ x_axis[2], y_axis[2], new_axis[2], 0.0 ],
+                                   [ 0.0,       0.0,       0.0,         1.0 ] ])
             
             with self._model_lock:
                 self._rotation_center = np.vstack((self._rotation_center, new_center))
