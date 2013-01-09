@@ -54,6 +54,7 @@ from object_tracker.cfg import RotatingObjectTrackerConfig
 from copy import copy, deepcopy
 
 class TrackedObject:
+    """ A tracked object, defined by its id, db and progressive id. The object is identified through its radius and phase wrt the rotation model. """
     id = 0
     db = ""
     progressive_id = 0
@@ -140,9 +141,11 @@ class Tracker:
         self._ork_camera_frame = ""
         
     def tf_frame_for_object(self, obj):
+        """ Return a formatted string that uniquely identifies an object, based on its database and progressive id. """
         return "%s_%s_%s" % (self._rotating_tf_frame, obj.id, obj.progressive_id)
     
     def broadcast_tf(self, time):
+        """ Publish TF data: a static frame for the center and axis of rotation, a moving rotating frame and an unique frame for each tracked object. """
         # the lock on the model should have been acquired outside
         self._previous_angle = self._rotation_speed[-1] * (time.to_sec() - self._last_tf_broadcast) + self._previous_angle
         self._tf_publisher.sendTransform(self._rotation_center[-1,:], tf.transformations.quaternion_from_matrix(self._reference_frame), 
@@ -163,6 +166,11 @@ class Tracker:
     
     
     def publish_markers(self):
+        """ 
+        Publish visualization markers for each tracked object.
+
+        The markers are frame locked with the object's TF frame hence moving continuously as long as the TF frame is updated. 
+        """
         tracked_objs_copy = set()
         with self._model_lock:
             tracked_objs_copy = copy(self._tracked_objects)
@@ -197,6 +205,14 @@ class Tracker:
         self._marker_publisher.publish(marker_array)
         
     def publish_rotation_msg(self, new_centers, new_axii, new_speeds):  
+        """
+        Publish a message containing the rotation parameters, the estimation confidences and the list of tracked objects.
+
+        Args:
+            new_centers: a list of the newly estimated rotation centers, used to compute the estimation confidence
+            new_axii: a list of the newly estimated rotation axii, used to compute the estimation confidence
+            new_speeds: a list of the newly estimated rotation speeds, used to compute the estimation confidence
+        """
         rotating_objs = RotatingObjects()       
         rotation_params = RotationParameters()
         rotation_params.header.frame_id = self._base_tf_frame
@@ -244,6 +260,7 @@ class Tracker:
         self._rotation_publisher.publish(rotating_objs)
       
     def publish_rotating_objects(self):
+        """ Publish an object_recognition_msgs/RecognizedObjectArray containing the tracked objects with the poses expressed using the rotating reference frame. """
         recognized_objects = RecognizedObjectArray()
         tracked_objs_copy = set()
         with self._model_lock:
@@ -263,6 +280,12 @@ class Tracker:
         self._rotating_objects_publisher.publish(recognized_objects)          
     
     def update_model(self, header):
+        """
+        Update the rotation parameters using the newly acquired poses for the tracked objects.
+
+        For each tracked object the rotation model is estimated independently; the results are then combined in order to
+        obtain a more robust set of rotation parameters.
+        """
         num_models = 0
         new_axii = []
         new_centers = []
@@ -349,6 +372,18 @@ class Tracker:
                     rospy.logwarn("%s" % e)
                     
     def init_model_from_object(self, object):
+        """
+        Initializes the rotation model with a rough estimate based only on one object.
+
+        Once a single object has been identified in multiple subsequent recognition results, a circle is fit through its poses and some starting rotation parameters
+        are determined in order to track more objects in the future and improve the accuracy.
+
+        Args:
+            object: a TrackedObject
+
+        Returns:
+            a boolean value indicating whether the model estimation was successful or not
+        """
         request = EstimateRotationRequest()
         request.poses = object.poses
         response = EstimateRotationResponse()
@@ -399,6 +434,17 @@ class Tracker:
         return response.success
     
     def find_closest_object_from_list(self, object, object_list, max_dist = sys.float_info.max):
+        """
+        Find the closest object from a list using L2 distance.
+
+        Args:
+            object: the RecognizedObject to which the nearest neighbor has to be found
+            object_list: a list of TrackedObject
+            max_dist: the maximum distance allowed between the object and its closest neighbor
+
+        Returns:
+            the closest TrackedObject if found or None
+        """
         if not object_list:
             return None
         
@@ -414,6 +460,17 @@ class Tracker:
         return closest_obj       
     
     def find_closest_object_from_list_polar(self, object, object_list, max_dist = sys.float_info.max):
+        """
+        Find the closest object from a list using polar distance.
+
+        Args:
+            object: the TrackedObject to which the nearest neighbor has to be found
+            object_list: a list of TrackedObject
+            max_dist: the maximum distance allowed between the object and its closest neighbor
+
+        Returns:
+            the closest TrackedObject if found or None
+        """
         if not object_list:
             return None
         
@@ -429,6 +486,17 @@ class Tracker:
         return closest_obj  
                 
     def initialization_phase_behavior(self, data):
+        """
+        The behavior during initialization phase.
+
+        Since a rotation model has not yet been estimated, a simple tracking mechanism in which objects from different recognition results are
+        considered the same object if they are close enough is used. When a certain minimum number of poses for a single object have been found, the estimation
+        of the rotation model is attempted. If the estimation is successful the internal tracker state is set to initialized and the subsequent behavior is different 
+        (tracking_phase_behavior).
+
+        Args:
+            data: a RecognizedObjectArray containing the results of the object detection
+        """
         # check if in the current recognition there are multiple instances of a single obj id
         categorized_detection_result = dict()
         
@@ -507,6 +575,15 @@ class Tracker:
             self._tracked_objects = tracked_objs_copy
                 
     def tracking_phase_behavior(self, data):
+        """
+        The behavior during the tracking phase.
+
+        Each object is tracked considering its polar coordinates wrt. the center of rotation, the tracking is more accurate in this way.
+        Also, after each tacking phase the rotation model is updated to reflect the increased number of data points.
+
+        Args:
+            data: a RecognizedObjectArray containing the results of the object detection
+        """
         #standard tracking
         new_tracked_objects = set()
         
@@ -601,6 +678,11 @@ class Tracker:
             self.publish_rotating_objects()
             
     def remove_static_objects(self):
+        """
+        Remove static objects from the tracked objects set.
+
+        An object is declared static if in the last user-configurable number of poses it has moved less than a certain distance.
+        """
         objs_to_remove = set()
         tracked_objs_copy = set()
         with self._model_lock:
@@ -626,6 +708,20 @@ class Tracker:
     
         
     def recognized_object_callback(self, data):
+        """
+        The callback for the object recognition.
+
+        The main algorithm, behaving as a finite state machine.
+        1 - Objects older than a configurable amount of time are removed from the tracked objects set.
+        2 - If necessary the input object poses are converted into an user specificable reference frame 
+            (as an example to account for movements of the robot using the base_link frame)
+        3 - Static objects are removed.
+        4 - If the algorithm has lost track of each object a re-initialization is performed.
+        5 - If not initialized perform the initialization_phase_behavior else perform the tracking_phase_behavior.
+
+        Args:
+            data: a RecognizedObjectArray containing the object detection results
+        """
         #remove old objects
         with self._model_lock:
             time = rospy.Time.now().to_sec()
@@ -676,17 +772,21 @@ class Tracker:
             self.tracking_phase_behavior(data)
             
     def pose_to_array(self, pose):
+        """ Convert a PoseWithCovarianceStamped into a numpy.array. """
         return np.array([ pose.pose.pose.position.x, 
                           pose.pose.pose.position.y, 
                           pose.pose.pose.position.z ])
     
     def polar_dist(self, r1, phi1, r2, phi2):
+        """ Compute the polar distance between two points. """
         return math.sqrt(r1**2 + r2**2 - 2*r1*r2*math.cos(phi1 - phi2))
     
     def l2_dist(self, pose1, pose2):
+        """ Compute the Euclidean distance between two PoseWithCovarianceStamped. """
         return np.linalg.norm(self.pose_to_array(pose1) - self.pose_to_array(pose2))
                               
     def tf_callback(self, event):
+        """ A callback used by a timer to publish TF data. """
         with self._tf_lock:
             if not self._model_valid:
                 return
@@ -695,6 +795,7 @@ class Tracker:
                 self.broadcast_tf(event.current_real)
                 
     def transform_roi_limits(self):
+        """ Transform the limits of the user specified Region of Interest for the object detection from an user specified reference_frame to the camera reference frame (used by ORK). """
         # Has to be done for all the 8 cube points...
         # The resulting cube is guaranteed to contain the original cube
         header = Header()
@@ -742,6 +843,7 @@ class Tracker:
             return self._roi_limits
             
     def detection_timer_callback(self, event):
+        """ A callback invoked at an user specified rate that performs the object recognition task and model estimation. """
         with self._detection_lock:
             goal = ObjectRecognitionGoal()
             goal.use_roi = self._use_roi
@@ -762,7 +864,13 @@ class Tracker:
                 
             rospy.logdebug("The detection took %s and returned %s." % ((rospy.Time.now() - start_time).to_sec(), self._object_detection_client.get_state()))
             
-    def set_parameters(self, config):        
+    def set_parameters(self, config):   
+        """
+        Set the object tracking parameters.
+
+        Args:
+            config: a dictionary containing the parameters to be set. Look into RotatingObjectTracker.cfg to see which parameters are allowed.
+        """     
         # frames
         if not (self._base_tf_frame == config['fixed_frame'] 
                 and self._intermediate_tf_frame == config['rotation_center_frame'] 
@@ -800,12 +908,14 @@ class Tracker:
                 self._tf_timer.shutdown()
             self._tf_timer = rospy.Timer(rospy.Duration(1.0 / self._tf_rate), self.tf_callback)
     
-    def dynamic_reconfigure_callback(self, config, level):      
+    def dynamic_reconfigure_callback(self, config, level):   
+        """ A callback for the dynamic_reconfigure server. """   
         self.set_parameters(config)
         return config
 
     
     def start(self):
+        """ Start the object tracker. """
         rospy.init_node("rotating_object_tracker")
         
         # dynamic reconfigure params

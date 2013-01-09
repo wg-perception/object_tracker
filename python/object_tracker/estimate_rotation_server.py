@@ -60,11 +60,11 @@ class CircleFinder:
         self.speed = None
         
     def calc_R(self, xc, yc, x, y):
-        """ calculate the distance of each 3D point from the center (xc, yc) """
+        """ Calculate the distance of each 3D point from the center (xc, yc). """
         return sqrt((x-xc)**2 + (y-yc)**2)
 
     def f_2(self, c, x_in, y_in):
-        """ calculate the algebraic distance between the 3D points and the mean circle centered at c=(xc, yc) """
+        """ Calculate the algebraic distance between the 3D points and the mean circle centered at c=(xc, yc). """
         x_c, y_c = c
         Ri = self.calc_R(x_c, y_c, x_in, y_in)
         return Ri - Ri.mean()
@@ -110,7 +110,17 @@ class CircleFinder:
         p.show()
     
     def fit_plane(self, x_in, y_in, z_in):
-        # Plane with PCA
+        """ 
+        Fit a plane through the input points using Principal Component Analysis. 
+
+        Args:
+            x_in: the x coordinates of the points
+            y_in: the y coordinates of the points
+            z_in: the z coordinates of the points
+
+        Returns:
+            an array containing the 4 plane coefficients
+        """
         points = array([x_in, y_in, z_in])
         center = points.mean(axis=1)
         points[0,:] -= center[0]
@@ -134,6 +144,21 @@ class CircleFinder:
         return array([plane_normal[0], plane_normal[1], plane_normal[2], plane_d])
     
     def project_points_to_plane(self, x_in, y_in, z_in, plane_coeffs):
+        """ 
+        Project a set of points on a plane defined by its coefficients.
+
+        Args:
+            x_in: the x coordinates of the points
+            y_in: the y coordinates of the points
+            z_in: the z coordinates of the points
+            plane_coeffs: the 4 plane coefficients
+
+        Returns:
+            proj_x: the projected x coordinates
+            proj_y: the projected y coordinates
+            proj_z: the projected z coordinates
+            origin: the origin (on the plane) as the point pointed by the plane_coeffs vector
+        """
         # define the origin (on the plane) as the point pointed by the coeff vector
         # d * (a, b, c)
         origin = (plane_coeffs[3]) * plane_coeffs[0:3]
@@ -154,6 +179,21 @@ class CircleFinder:
         return proj_x, proj_y, proj_z, origin
     
     def points3d_to_2d(self, x_in, y_in, z_in, plane_coeffs):
+        """
+        Project 3D points on a plane and return their 2D coordinates and the two axii defining the coordinates.
+
+        Args:
+            x_in: the x coordinates of the points
+            y_in: the y coordinates of the points
+            z_in: the z coordinates of the points
+            plane_coeffs: the 4 plane coefficients
+
+        Returns:
+            x_proj: the projected x coordinates (in the x_axis direction)
+            y_proj: the projected y coordinates (in the y axis direction)
+            x_axis: the determined x axis
+            y_axis: the determined y axis
+        """
         # define arbitrary axis
         # the origin is defined by the plane_coeffs
         x_axis = None
@@ -177,6 +217,19 @@ class CircleFinder:
         return x_proj, y_proj, x_axis, y_axis
     
     def find_circle(self, x_in, y_in, plot_circle = False):
+        """
+        Find a the best circle that passes through the input points.
+
+        Args:
+            x_in: the x coordinates of the points
+            y_in: the y_coordinates of the points
+            plot_circle: an optional arguments that allows for a graphical visualization of the results
+
+        Returns:
+            xc_2: the x coordinate of the center
+            yc_2: the y coordinate of the center
+            R_2: the circle radius
+        """
         # coordinates of the barycenter
         x_m = mean(x_in)
         y_m = mean(y_in)
@@ -203,7 +256,22 @@ class CircleFinder:
     
         return xc_2, yc_2, R_2
     
-    def find_circle(self, x_in,y_in, times, plot_circle=False):
+    def find_circle(self, x_in, y_in, times, plot_circle=False):
+        """
+        Find a the best circle that passes through the input points. Computes also the angular speed.
+
+        Args:
+            x_in: the x coordinates of the points
+            y_in: the y_coordinates of the points
+            times: the observation time for each couple of x-y values
+            plot_circle: an optional arguments that allows for a graphical visualization of the results
+
+        Returns:
+            xc_2: the x coordinate of the center
+            yc_2: the y coordinate of the center
+            R_2: the circle radius
+            ang_vel: the angular rotation speed
+        """
         # coordinates of the barycenter
         x_m = mean(x_in)
         y_m = mean(y_in)
@@ -255,6 +323,15 @@ class CircleFinder:
         return xc_2, yc_2, R_2, ang_vel
 
     def find_circle_posestamped(self, req):
+        """
+        Given an EstimateRotationRequest containing a list of object poses compute if possible the rotation parameters.
+
+        Args:
+            req: an EstimateRotationRequest containing a list of PoseWithCovarianceStamped.
+
+        Returns:
+            response: an EstimateRotationResponse containing the rotation parameters for the rotating object.
+        """
         pose_stamped_list = req.poses
         
         if len(pose_stamped_list) < 5:
@@ -312,6 +389,7 @@ class CircleFinder:
         return response
     
     def start(self):
+        """ Start the rotation estimation server. """
         rospy.init_node('estimate_rotation_server')
         s = rospy.Service('estimate_rotation', EstimateRotation, self.find_circle_posestamped)
         print "Ready to estimate circles."
