@@ -80,7 +80,7 @@ Alternatively, if you prefer launching a different object detector or you want t
 ### Parameters
 There are various parameters that can be set to fine tune the rotation 
 model estimation; the default values should be good for a variety of 
-practical cases but if you want to fine tune the behavior you can do so 
+practical cases but, if you want to change the behavior, you can do so 
 by running:
 
 	$ rosrun dynamic_reconfigure reconfigure_gui /objects_tracker
