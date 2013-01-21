@@ -322,21 +322,20 @@ class CircleFinder:
     
         return xc_2, yc_2, R_2, ang_vel
 
-    def find_circle_posestamped(self, req):
+    def find_circle_pose_with_covariance_stamped(self, pose_stamped_list):
         """
-        Given an EstimateRotationRequest containing a list of object poses compute if possible the rotation parameters.
+        Given a list of PoseWithCovarianceStamped compute if possible the rotation parameters.
 
         Args:
-            req: an EstimateRotationRequest containing a list of PoseWithCovarianceStamped.
+            pose_stamped_list: a list of PoseWithCovarianceStamped.
 
         Returns:
-            response: an EstimateRotationResponse containing the rotation parameters for the rotating object.
+            success, center, axis, radius, speed: if the estimation has been successful the rotation parameters are returned.
         """
-        pose_stamped_list = req.poses
         
         if len(pose_stamped_list) < 5:
             print 'Not enough poses to estimate a rotation'
-            return EstimateRotationResponse(success=False)
+            return False, None, None, None, None
         
         x_in = [] #array('f')
         y_in = [] #array('f')
@@ -362,36 +361,55 @@ class CircleFinder:
         
         # c_x and c_y are relative to the origin on the plane, convert them back to world coords
         c_vector = origin + x_axis * c_x + y_axis * c_y
-
-        self.center = Point()
-        self.center.x = c_vector[0]
-        self.center.y = c_vector[1]
-        self.center.z = c_vector[2]
         
         axis = array([plane_coeffs[0], plane_coeffs[1], plane_coeffs[2]])
         #c_vector points towards the rotation center
         if dot(c_vector, axis) > 0:
             axis = -axis
             self.speed = -self.speed
+            
+        return True, c_vector, axis, self.radius, self.speed
+    
+    def server_callback(self, req):
+        """
+        Given an EstimateRotationRequest containing a list of object poses compute if possible the rotation parameters.
+
+        Args:
+            req: an EstimateRotationRequest containing a list of PoseWithCovarianceStamped.
+
+        Returns:
+            response: an EstimateRotationResponse containing the rotation parameters for the rotating object.
+        """
+        pose_stamped_list = req.poses
         
-        self.axis = Vector3()
-        self.axis.x = axis[0]
-        self.axis.y = axis[1]
-        self.axis.z = axis[2]        
+        success, c_vector, axis, radius, speed = find_circle_pose_with_covariance_stamped(pose_stamped_list)
         
         response = EstimateRotationResponse()
-        response.success = True
-        response.center = self.center
-        response.axis = self.axis
-        response.radius = self.radius
-        response.speed = self.speed        
-        
-        return response
+        if success:
+            self.center = Point()
+            self.center.x = c_vector[0]
+            self.center.y = c_vector[1]
+            self.center.z = c_vector[2]
+            
+            self.axis = Vector3()
+            self.axis.x = axis[0]
+            self.axis.y = axis[1]
+            self.axis.z = axis[2]        
+            
+            response.success = True
+            response.center = self.center
+            response.axis = self.axis
+            response.radius = radius
+            response.speed = speed      
+        else:
+            response.success = False    
+            
+        return response        
     
     def start(self):
         """ Start the rotation estimation server. """
         rospy.init_node('estimate_rotation_server')
-        s = rospy.Service('estimate_rotation', EstimateRotation, self.find_circle_posestamped)
+        s = rospy.Service('estimate_rotation', EstimateRotation, self.server_callback)
         print "Ready to estimate circles."
         rospy.spin()
     
