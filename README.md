@@ -1,16 +1,20 @@
 object_tracker
 ==============
-This package allows for the tracking of moving (rotating) objects
+This package allows for the tracking of moving objects
 and the estimation of the relevant motion parameters.
-In the case of the rotation the estimated parameters are the center of
-rotation, the rotation axis and the rotation speed.
+The package gives the infrastructure to estimate the motion model and track
+the objects using different motion model estimators (e.g: a rotating motion, 
+a linear motion...).
+A rotation model estimator is provided: the estimated motion parameters 
+are the center of rotation, the rotation axis and the rotation speed.
 
 How it works
 ------------
 The `object_tracker` package uses the the output provided by the ROS
 [Object Recognition Kitchen]. This package examines subsequent detection
 results looking for moving objects and, if found, is able to determine
-the relevant rotation parameters, i.e. the center and axis of rotation
+the relevant motion parameters; in the case of the rotation estimator,
+the relevant parameters are the center and axis of rotation
 and the angular speed. Some statistical indicators (covariances) are also
 output to give an idea of the stability in time and spatial location of
 the estimated parameters.
@@ -46,7 +50,8 @@ This package has various outputs:
 Installation
 ------------
 ###Dependencies
-This package depends on the [Object Recognition Kitchen] hence you need to have in your ROS setup the following packages:
+This package depends on the [Object Recognition Kitchen] hence you need to have
+in your ROS setup the following packages:
 
 - `object_recognition_core`
 - `object_recognition_msgs`
@@ -71,11 +76,11 @@ To launch the tracker with the default parameters and having it launch for you t
 
 	$ roslaunch object_tracker track.launch
 
-Alternatively, if you prefer launching a different object detector or you want the maximum flexibility regarding topic names you can do this:
+Alternatively, if you prefer launching a different object detector or you want
+to use a different motion estimation you can do this:
 
-	$ rosrun object_recognition_ros server.py -c /path/to/recognition/config/file
-	$ rosrun object_tracker estimate_rotation_server.py
-	$ rosrun object_tracker multi_object_tracker.py
+	$ rosrun object_recognition_ros server -c /path/to/recognition/config/file
+	$ rosrun object_tracker multi_object_tracker.py -c /path/to/estimator/config/file
 
 ### Parameters
 There are various parameters that can be set to fine tune the rotation 
@@ -86,5 +91,32 @@ by running:
 	$ rosrun dynamic_reconfigure reconfigure_gui /objects_tracker
 
 To understand the meaning of each parameter simply hover your mouse on
-top of its name or have a look inside the [cfg/RotatingObjectTracker.cfg]
-file.
+top of its name or have a look inside [cfg/ObjectTracker.cfg](cfg/ObjectTracker.cfg).
+
+Different motion estimators
+---------------------------
+If you want you can create a different motion estimator to use with the `ObjectTracker`.
+To do so simply create a new Python class subclassing [`BaseTracker`](python/object_tracker/base_tracker.py)
+and fill the methods according to your specific motion model. 
+You can look into the current 
+[rotation estimator class](python/object_tracker/rotation_tracker.py)
+to get an idea of the expected behavior.
+
+To run your newly created motion estimator you need to pass to the `multi_object_tracker.py`
+script the path to a yaml configuration file that specifies which estimation class 
+you want to use.
+
+The configuration file should have a structure similar to this:
+
+```yaml
+TrackerName: # can be anything
+	type: PythonClassName 
+	module: Python.Module.Of.Your.Estimator
+	parameters:
+		# eventual parameters using the 
+		key: value # syntax
+```
+
+Then you can launch the tracker using the following command: 
+
+	$ rosrun object_tracker multi_object_tracker.py -c /path/to/estimator/config/file
