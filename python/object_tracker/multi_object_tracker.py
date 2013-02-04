@@ -481,7 +481,10 @@ class ObjectTracker:
                 self._tracker.broadcast_tf(event.current_real, self._tracked_objects)
                 
     def transform_roi_limits(self):
-        """ Transform the limits of the user specified Region of Interest for the object detection from an user specified reference_frame to the camera reference frame (used by ORK). """
+        """ 
+        Transform the limits of the user specified Region of Interest for the object detection 
+        from an user specified reference_frame to the camera reference frame (used by ORK). 
+        """
         # Has to be done for all the 8 cube points...
         # The resulting cube is guaranteed to contain the original cube
         header = Header()
@@ -594,6 +597,7 @@ class ObjectTracker:
         return config
     
     def reinit_model(self):
+        """ Reinitializes the tracker clearing the tracked objects list. """
         with self._model_lock:
             self._tracked_objects.clear()
         self._initialized = False

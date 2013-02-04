@@ -41,6 +41,19 @@ import traceback
 from object_tracker import BaseTracker
 
 def create_tracker():
+    """
+    Create and initialize a BaseTracker subclass specified in the configuration file
+    passed on the command line.
+    
+    The configuration file has to have the following yaml structure:
+    -----
+    TrackerName: # The name can be anything, used by the specific implementation 
+        type: Name of the motion estimation class
+        module: python module in which the class has to be found
+        parameters:
+            .... specific class parameters ....    
+    -----
+    """
     parser = argparse.ArgumentParser(description='Moving objects tracker with configurable motion estimation algorithm.')
     parser.add_argument('-c', dest='config_file', help='The path to the motion estimation configuration file.', required=True, 
                         type=argparse.FileType('r'))

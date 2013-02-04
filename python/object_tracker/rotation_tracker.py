@@ -115,7 +115,14 @@ class RotationTracker(BaseTracker):
             
     
     def broadcast_tf(self, time, objects):
-        """ Publish TF data: a static frame for the center and axis of rotation, a moving rotating frame and an unique frame for each tracked object. """
+        """ 
+        Publish TF data: a static frame for the center and axis of rotation, 
+        a moving rotating frame and an unique frame for each tracked object. 
+        
+        Args:
+            time: the timestamp to use when broadcasting the frames.
+            objects: a list of TrackedObject for which the TF frames have to be broadcasted.
+        """
         # the lock on the model should have been acquired outside
         self._previous_angle = self._rotation_speed[-1] * (time.to_sec() - self._last_tf_broadcast) + self._previous_angle
         self._tf_publisher.sendTransform(self._rotation_center[-1,:], tf.transformations.quaternion_from_matrix(self._reference_frame), 
@@ -134,6 +141,12 @@ class RotationTracker(BaseTracker):
         self._last_tf_broadcast = time.to_sec()
         
     def publish_messages(self, objects):
+        """ 
+        Publish messages only if clients are connected. 
+        
+        Args:
+            objects: a list of TrackedObject.
+        """
         if self._rotation_publisher.get_num_connections() > 0:
             self.publish_rotation_msg(objects)
         if self._rotating_objects_publisher.get_num_connections() > 0:
@@ -145,6 +158,10 @@ class RotationTracker(BaseTracker):
 
         For each tracked object the rotation model is estimated independently; the results are then combined in order to
         obtain a more robust set of rotation parameters.
+        
+        Args:
+            header: a Header used to update the model
+            objects: a list of TrackedObject.
         """
         num_models = 0
         new_axii = []
@@ -331,6 +348,12 @@ class RotationTracker(BaseTracker):
         return closest_obj  
           
     def set_parameters(self, config):  
+        """ 
+        Function called by the ObjectTracker when its parameters are dynamically changed. 
+        
+        Args:
+            config: a dictionary containing the new parameters.
+        """
          # tracking params
         self._min_poses_to_consider_an_object = config['min_poses_for_tracking']
         self._max_poses_for_object = config['max_poses_for_object']
@@ -349,7 +372,13 @@ class RotationTracker(BaseTracker):
 #        return False
         
     def start(self, tf_publisher, tf_listener):   
+        """
+        Configure the motion estimator.
         
+        Args:
+            tf_publisher: TF publisher used to broadcast the motion specific frames.
+            tf_listener: TF listener used to query past reference frames.
+        """
         # Publishers
         self._rotation_publisher = rospy.Publisher("rotating_objects", RotatingObjects)
         self._rotating_objects_publisher = rospy.Publisher("recognized_rotating_objects", RecognizedObjectArray)
@@ -407,6 +436,9 @@ class RotationTracker(BaseTracker):
         """ 
         Publish an object_recognition_msgs/RecognizedObjectArray containing the tracked 
         objects with the poses expressed using the rotating reference frame. 
+        
+        Args:
+            objects: a list of TrackedObject.
         """
         recognized_objects = RecognizedObjectArray()
         
@@ -434,9 +466,20 @@ class RotationTracker(BaseTracker):
         return math.sqrt(r1**2 + r2**2 - 2*r1*r2*math.cos(phi1 - phi2))
     
     def compute_distance(self, params_a, params_b):
+        """ Compute the distance between two instances of RotationParameters. """
         return self.polar_dist(params_a.radius, params_a.phase, params_b.radius, params_b.phase)
     
     def get_motion_parameters(self, pose):
+        """
+        Transform an absolute pose in a pose relative to the moving reference frame and return the coordinates
+        using radius and phase.
+        
+        Args:
+            pose: a PoseStamped
+            
+        Return:
+            an instance of RotationParameters that expresses the input pose.
+        """
         # transform the pose in the rotating coordinates so we can extract the parameters
         try:
             pose = self._tf_listener.transformPose(self._rotating_tf_frame, pose)
