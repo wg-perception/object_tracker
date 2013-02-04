@@ -45,7 +45,8 @@ import tf
 from geometry_msgs.msg import PoseStamped
 from object_recognition_msgs.msg import RecognizedObjectArray, RecognizedObject, ObjectId
 from object_tracker.msg import RotationParameters, RotatingObjects
-from object_tracker import BaseTracker, TrackedObject, MotionParameters, CircleFinder
+from object_tracker import BaseTracker, TrackedObject, MotionParameters
+from object_tracker.estimate_rotation_server import CircleFinder
 
 class RotationParameters(MotionParameters):
     radius = 0.0
@@ -56,6 +57,7 @@ class RotationTracker(BaseTracker):
     _tf_listener = tf.TransformListener
     _rotation_publisher = rospy.Publisher
     _rotating_objects_publisher = rospy.Publisher
+    _tracker_name = ""
     
     _circle_finder = CircleFinder
     _model_lock = threading.Lock
@@ -82,7 +84,8 @@ class RotationTracker(BaseTracker):
     _speed_std_dev = 0.0
     _speed_time_std_dev = 0.0  
     
-    def __init__(self):
+    def __init__(self, name, **kwargs):
+        self._tracker_name = name
         self._circle_finder = CircleFinder()
         self._model_lock = threading.Lock()
         
@@ -102,6 +105,14 @@ class RotationTracker(BaseTracker):
         self._center_time_covariance = np.identity(3).flatten().tolist()
         self._speed_std_dev = 0.0
         self._speed_time_std_dev = 0.0
+        
+        if 'rotation_center_frame' in kwargs:
+            self._intermediate_tf_frame = kwargs['rotation_center_frame']
+            print('Set intermediate_tf_frame to %s' % self._intermediate_tf_frame)
+        if 'rotating_frame' in kwargs:
+            self._rotating_tf_frame = kwargs['rotating_frame']
+            print('Set rotating_frame to %s' % self._rotating_tf_frame) 
+            
     
     def broadcast_tf(self, time, objects):
         """ Publish TF data: a static frame for the center and axis of rotation, a moving rotating frame and an unique frame for each tracked object. """
@@ -407,9 +418,9 @@ class RotationTracker(BaseTracker):
             if len(obj.poses) < self._min_poses_to_consider_an_object:
                 continue
             # update the timestamp of the object for our subscribers
-            obj.recognized_obj.header.stamp = now
+            obj.recognized_object.header.stamp = now
             
-            recognized_objects.objects.append(obj.recognized_obj)
+            recognized_objects.objects.append(obj.recognized_object)
         
         self._rotating_objects_publisher.publish(recognized_objects) 
         

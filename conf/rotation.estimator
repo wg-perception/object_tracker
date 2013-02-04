@@ -1,0 +1,6 @@
+RotationTracker:
+  type: RotationTracker
+  module: object_tracker.rotation_tracker
+#  parameters:
+#    rotation_center_frame: 'rotation_center_frame'
+#    rotating_frame: 'rotating_frame'

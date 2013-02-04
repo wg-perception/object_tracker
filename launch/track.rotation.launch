@@ -1,11 +1,10 @@
 <launch>
-    <node pkg="object_tracker" name="objects_tracker" type="multi_object_tracker.py" output="screen">
+    <node pkg="object_tracker" name="objects_tracker" type="multi_object_tracker.py" 
+    		args="-c $(find object_tracker)/conf/rotation.estimator" output="screen">
       <remap from="recognized_object_array" to="/recognized_object_array" />
       <remap from="rotating_objects_markers" to="/rotating_objects_markers" />
       <remap from="rotating_objects" to="/rotating_objects" />
       <remap from="recognized_rotating_objects" to="/recognized_rotating_objects" />
-    </node>
-    <node pkg="object_tracker" name="object_tracker_rotation_estimator" type="estimate_rotation_server.py">
     </node>
     <node pkg="object_recognition_ros" type="server" name="tabletop_detector" 
             args="-c $(find object_recognition_tabletop)/conf/detection.object.ros.ork" output="screen" />

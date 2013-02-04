@@ -50,7 +50,8 @@ from std_msgs.msg import Header
 from visualization_msgs.msg import MarkerArray, Marker
 from object_tracker.cfg import ObjectTrackerConfig
 from copy import copy, deepcopy
-from object_tracker import TrackedObject, MotionParameters, BaseTracker, RotationTracker 
+from object_tracker import TrackedObject, MotionParameters, BaseTracker 
+from object_tracker.tracker_factory import create_tracker
 
 class ObjectTracker:
     _initialized = False
@@ -597,14 +598,13 @@ class ObjectTracker:
             self._tracked_objects.clear()
         self._initialized = False
         self._progressive_id = 0
-
     
-    def start(self):
+    def start(self, tracker_instance):
         """ Start the object tracker. """
         rospy.init_node("object_tracker")
         
         # Setup tracker
-        self._tracker = RotationTracker()
+        self._tracker = tracker_instance
         
         # dynamic reconfigure params
         self._dynamic_reconfigure_server = Server(ObjectTrackerConfig, self.dynamic_reconfigure_callback)
@@ -633,6 +633,7 @@ class ObjectTracker:
         rospy.spin()
     
 if __name__ == "__main__":
+    motion_tracker = create_tracker()
     tracker = ObjectTracker()
-    tracker.start()
+    tracker.start(motion_tracker)
     
